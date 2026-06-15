@@ -1,0 +1,2177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // FOUC 防止: 描画前にテーマを確定させる
+  (function () {
+    try {
+      var t = localStorage.getItem('jsonata-dojo-theme');
+      if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) { /* ignore */ }
+  })();
+</script>
+<title>JSONata ノック道場 — Step Functions の JSONata を40本で身につける</title>
+<meta name="description" content="AWS Step Functions の JSONata を、手を動かして学ぶ40本のドリル。$states.input から $parse・高階関数・Map/Catch/Assign まで、Step Functions の文脈で実践的に習得。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="JSONata ノック道場 — Step Functions の JSONata を40本で身につける">
+<meta property="og:description" content="AWS Step Functions の JSONata を、手を動かして学ぶ40本のドリル。本番と同じ $states.input の制約で採点するから、道場で正解した式はそのまま実機で動く。">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="JSONata ノック道場 — for AWS Step Functions">
+<meta name="twitter:description" content="Step Functions の JSONata を40本のドリルで習得。本番互換の採点エンジン搭載。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='12'%20fill='%230d0d12'/%3E%3Ctext%20x='32'%20y='46'%20font-family='monospace'%20font-size='40'%20font-weight='bold'%20fill='%23e9a849'%20text-anchor='middle'%3E$%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d12;
+    --bg-grad: radial-gradient(ellipse at top left, #1a1620 0%, #0d0d12 50%);
+    --surface: #16161e;
+    --surface-2: #1d1d27;
+    --surface-3: #25252f;
+    --border: #2a2a35;
+    --border-strong: #3a3a48;
+    --text: #ebebef;
+    --text-dim: #9696a3;
+    --text-mute: #5a5a68;
+    --accent: #e9a849;
+    --accent-soft: #e9a84922;
+    --accent-dim: #b58339;
+    --ok: #87b97a;
+    --ok-soft: #87b97a18;
+    --err: #d96868;
+    --err-soft: #d9686818;
+    --info: #7aa8d6;
+    --info-soft: #7aa8d618;
+    --topbar-bg: rgba(13, 13, 18, 0.85);
+    --overlay-bg: rgba(8, 8, 12, 0.7);
+    --noise-opacity: 0.025;
+    --json-key: #c8a6e0;
+    --json-str: #b5d49a;
+    --json-num: #e9a849;
+    --json-bool: #d68888;
+    --json-null: #d68888;
+    --json-punct: #5a5a68;
+    --serif: 'Fraunces', 'IBM Plex Sans JP', serif;
+    --sans: 'IBM Plex Sans JP', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  /* Light theme */
+  :root[data-theme="light"] {
+    --bg: #f6f2ea;
+    --bg-grad: radial-gradient(ellipse at top left, #fdf6e9 0%, #f6f2ea 50%);
+    --surface: #fffdf8;
+    --surface-2: #f1ebdf;
+    --surface-3: #e7dfce;
+    --border: #e2d9c8;
+    --border-strong: #cabfa8;
+    --text: #2b2620;
+    --text-dim: #6a6354;
+    --text-mute: #9b9484;
+    --accent: #b07d1f;
+    --accent-soft: #b07d1f1f;
+    --accent-dim: #8c641a;
+    --ok: #5a8a4a;
+    --ok-soft: #5a8a4a1a;
+    --err: #c0453f;
+    --err-soft: #c0453f14;
+    --info: #3a72a8;
+    --info-soft: #3a72a814;
+    --topbar-bg: rgba(246, 242, 234, 0.85);
+    --overlay-bg: rgba(70, 62, 48, 0.35);
+    --noise-opacity: 0.04;
+    --json-key: #8a4fbf;
+    --json-str: #4f7a3a;
+    --json-num: #b07d1f;
+    --json-bool: #c0453f;
+    --json-null: #c0453f;
+    --json-punct: #9b9484;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    background-image: var(--bg-grad);
+    color: var(--text);
+    min-height: 100vh;
+    font-feature-settings: "palt";
+    line-height: 1.6;
+    overflow-x: hidden;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: var(--noise-opacity);
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* Top bar */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--topbar-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .brand-mark {
+    font-family: var(--serif);
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .brand-mark em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .brand-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .top-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .top-progress {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .top-progress strong { color: var(--accent); font-weight: 500; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-ghost:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 0;
+    max-width: 1480px;
+    margin: 0 auto;
+    min-height: calc(100vh - 60px);
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 32px 24px;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .sidebar::-webkit-scrollbar { width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .sidebar-title {
+    font-family: var(--serif);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mute);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 0 0 16px;
+  }
+  .level-group { margin-bottom: 28px; }
+  .level-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 0 4px 8px;
+    border-bottom: 1px dashed var(--border);
+    margin-bottom: 8px;
+  }
+  .level-num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .level-name {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .level-count {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mute);
+  }
+  .problem-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 13px;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+  }
+  .problem-link:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .problem-link.active {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .problem-link .pnum {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    min-width: 24px;
+    font-variant-numeric: tabular-nums;
+  }
+  .problem-link.active .pnum { color: var(--accent); }
+  .problem-link .ptitle {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .problem-link .pdot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    flex-shrink: 0;
+  }
+  .problem-link.done .pdot { background: var(--ok); box-shadow: 0 0 8px var(--ok-soft); }
+  .problem-link.attempted .pdot { background: var(--accent); }
+
+  /* Main */
+  .main {
+    padding: 48px 56px 80px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  /* Problem header */
+  .problem-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-mute);
+  }
+  .problem-meta .cat { color: var(--accent); }
+  .problem-num {
+    font-family: var(--serif);
+    font-size: 96px;
+    line-height: 1;
+    font-weight: 200;
+    color: var(--text-mute);
+    margin: 0 0 -8px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.04em;
+  }
+  .problem-num em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .problem-title {
+    font-family: var(--serif);
+    font-size: 38px;
+    font-weight: 600;
+    margin: 0 0 24px;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .problem-desc {
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--text);
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    max-width: 720px;
+  }
+  .problem-desc code {
+    font-family: var(--mono);
+    font-size: 14px;
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+
+  /* Section labels */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::before {
+    content: '';
+    width: 16px;
+    height: 1px;
+    background: var(--border-strong);
+  }
+
+  /* Code blocks */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .panel-body {
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: var(--text);
+    white-space: pre;
+    min-height: 80px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .panel-body::-webkit-scrollbar { width: 6px; height: 6px; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* JSON syntax highlight */
+  .json-key { color: var(--json-key); }
+  .json-str { color: var(--json-str); }
+  .json-num { color: var(--json-num); }
+  .json-bool { color: var(--json-bool); }
+  .json-null { color: var(--json-null); }
+  .json-punct { color: var(--json-punct); }
+
+  /* Editor */
+  .editor-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .editor-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .editor-head {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .editor-head-left {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .editor-shortcut {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+  }
+  .editor-shortcut kbd {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .editor {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    padding: 20px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.7;
+    resize: vertical;
+    min-height: 110px;
+    box-sizing: border-box;
+    tab-size: 2;
+  }
+  .editor::placeholder { color: var(--text-mute); font-style: italic; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .btn {
+    border: 0;
+    padding: 11px 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #1a1308;
+  }
+  .btn-primary:hover {
+    background: #f4b556;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(233, 168, 73, 0.25);
+  }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-3);
+  }
+  .btn-text {
+    background: transparent;
+    color: var(--text-dim);
+    padding: 8px 12px;
+  }
+  .btn-text:hover { color: var(--text); }
+
+  /* Result */
+  .result {
+    margin-top: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    display: none;
+    animation: slideIn 0.3s ease-out;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result.show { display: block; }
+  .result.ok { border-color: var(--ok); background: var(--ok-soft); }
+  .result.err { border-color: var(--err); background: var(--err-soft); }
+  .result-head {
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .result.ok .result-head { color: var(--ok); }
+  .result.err .result-head { color: var(--err); }
+  .result-head-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .result.ok .result-head-icon { background: var(--ok); color: #0a1408; }
+  .result.err .result-head-icon { background: var(--err); color: #1a0808; }
+  .result-body {
+    padding: 0 18px 18px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+  }
+  .result-diff {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .diff-col-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .diff-col-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    max-height: 180px;
+    overflow: auto;
+    white-space: pre;
+  }
+
+  /* Hint / Solution boxes */
+  .helpers {
+    margin-top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  details.helper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  details.helper summary {
+    padding: 14px 18px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+  }
+  details.helper summary::-webkit-details-marker { display: none; }
+  details.helper summary::after {
+    content: '+';
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--text-mute);
+    transition: transform 0.2s;
+  }
+  details.helper[open] summary::after { content: '–'; }
+  details.helper summary:hover { color: var(--text); }
+  details.helper .helper-body {
+    padding: 0 18px 18px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-dim);
+  }
+  details.helper .helper-body code {
+    font-family: var(--mono);
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  details.helper pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 12px 0 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* Navigation footer */
+  .nav-footer {
+    margin-top: 56px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .nav-btn {
+    flex: 1;
+    max-width: 280px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-dim);
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .nav-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--surface);
+  }
+  .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .nav-btn .nav-dir {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-mute);
+    margin-bottom: 4px;
+  }
+  .nav-btn .nav-title {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .nav-btn.next { text-align: right; }
+
+  /* Welcome / Done states */
+  .welcome {
+    padding: 80px 0;
+    max-width: 680px;
+  }
+  .welcome-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+  .welcome h1 {
+    font-family: var(--serif);
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0 0 8px;
+  }
+  .welcome h1 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .welcome-sub {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-style: italic;
+    color: var(--text-dim);
+    margin: 0 0 36px;
+    line-height: 1.5;
+  }
+  .welcome-body {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--text-dim);
+    margin-bottom: 36px;
+  }
+  .welcome-body strong { color: var(--text); font-weight: 600; }
+  .welcome-body code {
+    font-family: var(--mono);
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+
+  /* Mobile sidebar */
+  .mobile-bar { display: none; }
+
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 100vh;
+      background: var(--bg);
+      z-index: 200;
+      transform: translateX(-100%);
+      transition: transform 0.25s;
+      padding-top: 80px;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .main { padding: 32px 22px 60px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .mobile-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 22px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 60px;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+    }
+    .mobile-menu-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-family: var(--sans);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .mobile-current {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .problem-num { font-size: 64px; }
+    .problem-title { font-size: 26px; }
+    .welcome h1 { font-size: 44px; }
+    .welcome-sub { font-size: 17px; }
+    .topbar-inner { padding: 12px 18px; }
+    .result-diff { grid-template-columns: 1fr; }
+  }
+
+  .loading-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    flex-direction: column;
+    gap: 16px;
+    transition: opacity 0.3s;
+  }
+  .loading-screen.hidden { opacity: 0; pointer-events: none; }
+  .loading-text {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--text-mute);
+    font-size: 18px;
+  }
+  .loading-spin {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Cheatsheet */
+  .cheat-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: var(--overlay-bg);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 56px 24px;
+    overflow-y: auto;
+  }
+  .cheat-overlay.open { display: flex; animation: slideIn 0.2s ease-out; }
+  .cheat-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    max-width: 880px;
+    width: 100%;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+    margin: auto 0;
+  }
+  .cheat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 22px 28px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    border-radius: 12px 12px 0 0;
+    z-index: 1;
+  }
+  .cheat-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .cheat-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .cheat-close {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .cheat-close:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-3); }
+  .cheat-body {
+    padding: 8px 28px 28px;
+    columns: 2;
+    column-gap: 28px;
+  }
+  .cheat-sec {
+    break-inside: avoid;
+    margin-top: 24px;
+    display: inline-block;
+    width: 100%;
+  }
+  .cheat-sec h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .cheat-warn h3 { color: var(--err); }
+  .cheat-tbl { width: 100%; border-collapse: collapse; }
+  .cheat-tbl td {
+    padding: 5px 0;
+    vertical-align: top;
+    font-size: 13px;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--border);
+  }
+  .cheat-tbl tr:last-child td { border-bottom: 0; }
+  .cheat-tbl .ck {
+    width: 38%;
+    padding-right: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .cheat-tbl .ck.cs { color: var(--accent); }
+  .cheat-body code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .cheat-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 10px 0 0;
+    line-height: 1.6;
+  }
+  @media (max-width: 720px) {
+    .cheat-body { columns: 1; }
+    .cheat-overlay { padding: 24px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-spin"></div>
+  <div class="loading-text">道場の門を開けています…</div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#" onclick="goHome();return false;">
+      <span class="brand-mark">JSONata <em>ノック</em>道場</span>
+      <span class="brand-tag">for AWS Step Functions</span>
+    </a>
+    <div class="top-actions">
+      <span class="top-progress" id="topProgress"><strong>0</strong> / 25</span>
+      <button class="btn-ghost" id="themeToggle" onclick="toggleTheme()" title="テーマ切り替え" aria-label="テーマ切り替え">🌙</button>
+      <button class="btn-ghost" onclick="toggleCheatsheet()">📖 チートシート</button>
+      <button class="btn-ghost" onclick="resetProgress()">リセット</button>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-bar">
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">≡ 問題一覧</button>
+  <span class="mobile-current" id="mobileCurrent">— / 25</span>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-title">問題一覧</div>
+    <div id="problemList"></div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<!-- ============ Cheatsheet (常設・いつでも参照) ============ -->
+<div class="cheat-overlay" id="cheatOverlay" onclick="if(event.target===this)toggleCheatsheet()">
+  <div class="cheat-panel" role="dialog" aria-label="JSONata チートシート">
+    <div class="cheat-head">
+      <div>
+        <div class="cheat-title">JSONata × Step Functions チートシート</div>
+        <div class="cheat-sub">手が止まったらここを見る。本番で通用する書き方だけをまとめてある。</div>
+      </div>
+      <button class="cheat-close" onclick="toggleCheatsheet()" aria-label="閉じる">✕</button>
+    </div>
+    <div class="cheat-body">
+
+      <section class="cheat-sec">
+        <h3>データの参照元 — 「どこから来るか」</h3>
+        <table class="cheat-tbl">
+          <tr><td class="ck"><code>$states.input</code></td><td>このステートへの入力。基本はここから取り出す</td></tr>
+          <tr><td class="ck"><code>$states.result</code></td><td>直前の Task / Map / Parallel の結果</td></tr>
+          <tr><td class="ck"><code>$変数名</code></td><td>Assign で持ち回る変数（例 <code>$userId</code>, <code>$total</code>）</td></tr>
+        </table>
+        <p class="cheat-note">⚠ 裸の <code>orderId</code> は参照できない。必ず <code>$states.input.orderId</code> と書く（本番と同じ挙動）。</p>
+      </section>
+
+      <section class="cheat-sec">
+        <h3>基本構文 — JSONata の骨格</h3>
+        <table class="cheat-tbl">
+          <tr><td class="ck"><code>.field</code></td><td>パスアクセス。ネストは <code>a.b.c</code> といくらでも深く</td></tr>
+          <tr><td class="ck"><code>array.field</code></td><td><strong>配列に <code>.</code> で全要素を自動射影</strong>（最重要）</td></tr>
+          <tr><td class="ck"><code>array[式]</code></td><td>フィルタ。<code>[status="paid"]</code> / index <code>[0]</code> / 末尾 <code>[-1]</code></td></tr>
+          <tr><td class="ck"><code>array.{…}</code></td><td>各要素をオブジェクトに変換（map）。中ではフィールド名を直接参照</td></tr>
+          <tr><td class="ck"><code>{ "k": v }</code></td><td>オブジェクト構築</td></tr>
+          <tr><td class="ck"><code>array^(f)</code></td><td>ソート。昇順 <code>^(age)</code> / 降順 <code>^(&gt;age)</code> / 複数 <code>^(a,&gt;b)</code></td></tr>
+          <tr><td class="ck"><code>array{k:v}</code></td><td>グルーピング（SQL の GROUP BY 相当）</td></tr>
+          <tr><td class="ck"><code>( $x := …; … )</code></td><td>ブロック。<code>:=</code> でローカル変数を束縛し、最後の式が結果</td></tr>
+        </table>
+      </section>
+
+      <section class="cheat-sec">
+        <h3>演算子 — つまずきポイント</h3>
+        <table class="cheat-tbl">
+          <tr><td class="ck"><code>&amp;</code></td><td>文字列連結（<code>+</code> ではない！）</td></tr>
+          <tr><td class="ck"><code>=</code></td><td>等値比較（<code>==</code> ではない）。否定は <code>!=</code></td></tr>
+          <tr><td class="ck"><code>&gt; &lt; &gt;= &lt;=</code></td><td>大小比較</td></tr>
+          <tr><td class="ck"><code>cond ? a : b</code></td><td>三項演算子（条件分岐）</td></tr>
+          <tr><td class="ck"><code>+ - * / %</code></td><td>算術（数値のみ）</td></tr>
+        </table>
+      </section>
+
+      <section class="cheat-sec">
+        <h3>よく使う関数</h3>
+        <table class="cheat-tbl">
+          <tr><td class="ck">集計</td><td><code>$sum</code> <code>$average</code> <code>$max</code> <code>$min</code> <code>$count</code></td></tr>
+          <tr><td class="ck">配列</td><td><code>$map</code> <code>$filter</code> <code>$reduce</code> <code>$sort</code> <code>$distinct</code> <code>$reverse</code> <code>$append</code> <code>$join</code> <code>$split</code></td></tr>
+          <tr><td class="ck">オブジェクト</td><td><code>$keys</code> <code>$lookup</code> <code>$merge</code> <code>$spread</code> <code>$each</code></td></tr>
+          <tr><td class="ck">文字列</td><td><code>$lowercase</code> <code>$uppercase</code> <code>$trim</code> <code>$substring</code> <code>$substringBefore/After</code> <code>$replace</code> <code>$contains</code> <code>$string</code></td></tr>
+          <tr><td class="ck">数値・日時</td><td><code>$number</code> <code>$round</code> <code>$floor</code> <code>$formatNumber</code> <code>$fromMillis</code> <code>$toMillis</code></td></tr>
+          <tr><td class="ck">存在判定</td><td><code>$exists</code> <code>$type</code> <code>$not</code></td></tr>
+          <tr><td class="ck">高階関数</td><td><code>function($x){ … }</code> を第2引数に渡す（例 <code>$map(a, function($n){ $n*$n })</code>）</td></tr>
+          <tr><td class="ck cs">SFn 独自</td><td><code>$parse</code> — JSON 文字列をオブジェクトに変換（Lambda の文字列ペイロード等）</td></tr>
+        </table>
+      </section>
+
+      <section class="cheat-sec cheat-warn">
+        <h3>⛔ 本番 Step Functions では使えない</h3>
+        <p class="cheat-note">標準 JSONata にはあるが、SFn のエンジンは未対応。道場では動いても本番で落ちる。</p>
+        <table class="cheat-tbl">
+          <tr><td class="ck"><code>$eval</code> <code>$now</code> <code>$millis</code> <code>$random</code></td><td>これらの関数は使えない</td></tr>
+          <tr><td class="ck"><code>??</code> <code>?:</code></td><td>null合体 / Elvis 演算子は未対応 → 代わりに <code>$exists(x) ? x : 既定値</code></td></tr>
+        </table>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{("undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof self?self:this).jsonata=e()}}(function(){return function(){return function e(t,r,n){function a(o,s){if(!r[o]){if(!t[o]){var u="function"==typeof require&&require;if(!s&&u)return u(o,!0);if(i)return i(o,!0);var c=new Error("Cannot find module '"+o+"'");throw c.code="MODULE_NOT_FOUND",c}var p=r[o]={exports:{}};t[o][0].call(p.exports,function(e){return a(t[o][1][e]||e)},p,p.exports,e,t,r,n)}return r[o].exports}for(var i="function"==typeof require&&require,o=0;o<n.length;o++)a(n[o]);return a}}()({1:[function(e,t,r){const n=e("./utils"),a=function(){"use strict";const e=n.stringToArray,t=["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"],r=["Zeroth","First","Second","Third","Fourth","Fifth","Sixth","Seventh","Eighth","Ninth","Tenth","Eleventh","Twelfth","Thirteenth","Fourteenth","Fifteenth","Sixteenth","Seventeenth","Eighteenth","Nineteenth"],a=["Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety","Hundred"],i=["Thousand","Million","Billion","Trillion"];const o={};t.forEach(function(e,t){o[e.toLowerCase()]=t}),r.forEach(function(e,t){o[e.toLowerCase()]=t}),a.forEach(function(e,t){const r=e.toLowerCase();o[r]=10*(t+2),o[r.substring(0,e.length-1)+"ieth"]=o[r]}),o.hundredth=100,i.forEach(function(e,t){const r=e.toLowerCase(),n=Math.pow(10,3*(t+1));o[r]=n,o[r+"th"]=n});const s=[[1e3,"m"],[900,"cm"],[500,"d"],[400,"cd"],[100,"c"],[90,"xc"],[50,"l"],[40,"xl"],[10,"x"],[9,"ix"],[5,"v"],[4,"iv"],[1,"i"]],u={M:1e3,D:500,C:100,L:50,X:10,V:5,I:1};function c(e,t){if(void 0===e)return;return l(e=Math.floor(e),d(t))}const p={DECIMAL:"decimal",LETTERS:"letters",ROMAN:"roman",WORDS:"words",SEQUENCE:"sequence"},f={UPPER:"upper",LOWER:"lower",TITLE:"title"};function l(n,o){let u;const c=n<0;switch(n=Math.abs(n),o.primary){case p.LETTERS:u=function(e,t){for(var r=[],n=t.charCodeAt(0);e>0;)r.unshift(String.fromCharCode((e-1)%26+n)),e=Math.floor((e-1)/26);return r.join("")}(n,o.case===f.UPPER?"A":"a");break;case p.ROMAN:u=function e(t){for(var r=0;r<s.length;r++){const n=s[r];if(t>=n[0])return n[1]+e(t-n[0])}return""}(n),o.case===f.UPPER&&(u=u.toUpperCase());break;case p.WORDS:u=function(e,n){var o=function(e,n,s){var u="";if(e<=19)u=(n?" and ":"")+(s?r[e]:t[e]);else if(e<100){const t=Math.floor(e/10),r=e%10;u=(n?" and ":"")+a[t-2],r>0?u+="-"+o(r,!1,s):s&&(u=u.substring(0,u.length-1)+"ieth")}else if(e<1e3){const r=Math.floor(e/100),a=e%100;u=(n?", ":"")+t[r]+" Hundred",a>0?u+=o(a,!0,s):s&&(u+="th")}else{var c=Math.floor(Math.log10(e)/3);c>i.length&&(c=i.length);const t=Math.pow(10,3*c),r=Math.floor(e/t),a=e-r*t;u=(n?", ":"")+o(r,!1,!1)+" "+i[c-1],a>0?u+=o(a,!0,s):s&&(u+="th")}return u};return o(e,!1,n)}(n,o.ordinal),o.case===f.UPPER?u=u.toUpperCase():o.case===f.LOWER&&(u=u.toLowerCase());break;case p.DECIMAL:u=""+n;var l=o.mandatoryDigits-u.length;if(l>0){var h=new Array(l+1).join("0");u=h+u}if(48!==o.zeroCode&&(u=e(u).map(e=>String.fromCodePoint(e.codePointAt(0)+o.zeroCode-48)).join("")),o.regular){for(let e=Math.floor((u.length-1)/o.groupingSeparators.position);e>0;e--){const t=u.length-e*o.groupingSeparators.position;u=u.substr(0,t)+o.groupingSeparators.character+u.substr(t)}}else o.groupingSeparators.reverse().forEach(e=>{const t=u.length-e.position;u=u.substr(0,t)+e.character+u.substr(t)});if(o.ordinal){var d={1:"st",2:"nd",3:"rd"}[u[u.length-1]];(!d||u.length>1&&"1"===u[u.length-2])&&(d="th"),u+=d}break;case p.SEQUENCE:throw{code:"D3130",value:o.token}}return c&&(u="-"+u),u}const h=[48,1632,1776,1984,2406,2534,2662,2790,2918,3046,3174,3302,3430,3558,3664,3792,3872,4160,4240,6112,6160,6470,6608,6784,6800,6992,7088,7232,7248,42528,43216,43264,43472,43504,43600,44016,65296];function d(t){const r={type:"integer",primary:p.DECIMAL,case:f.LOWER,ordinal:!1};let n,a;const i=t.lastIndexOf(";");switch(-1===i?n=t:(n=t.substring(0,i),"o"===(a=t.substring(i+1))[0]&&(r.ordinal=!0)),n){case"A":r.case=f.UPPER;case"a":r.primary=p.LETTERS;break;case"I":r.case=f.UPPER;case"i":r.primary=p.ROMAN;break;case"W":r.case=f.UPPER,r.primary=p.WORDS;break;case"Ww":r.case=f.TITLE,r.primary=p.WORDS;break;case"w":r.primary=p.WORDS;break;default:{let t=null,a=0,i=0,o=[],s=0;if(e(n).map(e=>e.codePointAt(0)).reverse().forEach(e=>{let r=!1;for(let n=0;n<h.length;n++){const i=h[n];if(e>=i&&e<=i+9){if(r=!0,a++,s++,null===t)t=i;else if(i!==t)throw{code:"D3131"};break}}r||(35===e?(s++,i++):o.push({position:s,character:String.fromCodePoint(e)}))}),a>0){r.primary=p.DECIMAL,r.zeroCode=t,r.mandatoryDigits=a,r.optionalDigits=i;const e=function(e){if(0===e.length)return 0;const t=e[0].character;for(let r=1;r<e.length;r++)if(e[r].character!==t)return 0;const r=e.map(e=>e.position),n=function(e,t){return 0===t?e:n(t,e%t)},a=r.reduce(n);for(let e=1;e<=r.length;e++)if(-1===r.indexOf(e*a))return 0;return a}(o);e>0?(r.regular=!0,r.groupingSeparators={position:e,character:o[0].character}):(r.regular=!1,r.groupingSeparators=o)}else r.primary=p.SEQUENCE,r.token=n}}return r}const v={Y:"1",M:"1",D:"1",d:"1",F:"n",W:"1",w:"1",X:"1",x:"1",H:"1",h:"1",P:"n",m:"01",s:"01",f:"1",Z:"01:01",z:"01:01",C:"n",E:"n"};function g(e){var t=[];const r={type:"datetime",parts:t},n=function(r,n){if(n>r){let a=e.substring(r,n);a=a.split("]]").join("]"),t.push({type:"literal",value:a})}};for(var a=0,i=0;i<e.length;){if("["===e.charAt(i)){if("["===e.charAt(i+1)){n(a,i),t.push({type:"literal",value:"["}),a=i+=2;continue}if(n(a,i),a=i,-1===(i=e.indexOf("]",a)))throw{code:"D3135"};let r=e.substring(a+1,i);var o,s={type:"marker",component:(r=r.split(/\s+/).join("")).charAt(0)},u=r.lastIndexOf(",");if(-1!==u){const e=r.substring(u+1),t=e.indexOf("-");let n,a;const i=function(e){return void 0===e||"*"===e?void 0:parseInt(e)};-1===t?n=e:(n=e.substring(0,t),a=e.substring(t+1));const c={min:i(n),max:i(a)};s.width=c,o=r.substring(1,u)}else o=r.substring(1);if(1===o.length)s.presentation1=o;else if(o.length>1){var c=o.charAt(o.length-1);-1!=="atco".indexOf(c)?(s.presentation2=c,"o"===c&&(s.ordinal=!0),s.presentation1=o.substring(0,o.length-1)):s.presentation1=o}else s.presentation1=v[s.component];if(void 0===s.presentation1)throw{code:"D3132",value:s.component};if("n"===s.presentation1[0])s.names=f.LOWER;else if("N"===s.presentation1[0])"n"===s.presentation1[1]?s.names=f.TITLE:s.names=f.UPPER;else if(-1!=="YMDdFWwXxHhmsf".indexOf(s.component)){var p=s.presentation1;if(s.presentation2&&(p+=";"+s.presentation2),s.integerFormat=d(p),s.width&&void 0!==s.width.min&&s.integerFormat.mandatoryDigits<s.width.min&&(s.integerFormat.mandatoryDigits=s.width.min),-1!=="YMD".indexOf(s.component))if(s.n=-1,s.width&&void 0!==s.width.max)s.n=s.width.max,s.integerFormat.mandatoryDigits=s.n;else{var l=s.integerFormat.mandatoryDigits+s.integerFormat.optionalDigits;l>=2&&(s.n=l)}}"Z"!==s.component&&"z"!==s.component||(s.integerFormat=d(s.presentation1)),t.push(s),a=i+1}i++}return n(a,i),r}const m=["","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],y=["January","February","March","April","May","June","July","August","September","October","November","December"],b=function(e){const t=Date.UTC(e.year,e.month);var r=new Date(t).getUTCDay();return 0===r&&(r=7),r>4?t+864e5*(8-r):t-864e5*(r-1)},w=function(e,t){return{year:e,month:t,nextMonth:function(){return 11===t?w(e+1,0):w(e,t+1)},previousMonth:function(){return 0===t?w(e-1,11):w(e,t-1)},nextYear:function(){return w(e+1,t)},previousYear:function(){return w(e-1,t)}}},k=function(e,t){return(t-e)/6048e5+1},x=(e,t)=>{let r;switch(t){case"Y":r=e.getUTCFullYear();break;case"M":r=e.getUTCMonth()+1;break;case"D":r=e.getUTCDate();break;case"d":r=(Date.UTC(e.getUTCFullYear(),e.getUTCMonth(),e.getUTCDate())-Date.UTC(e.getUTCFullYear(),0))/864e5+1;break;case"F":0===(r=e.getUTCDay())&&(r=7);break;case"W":{const t=w(e.getUTCFullYear(),0),n=b(t),a=Date.UTC(t.year,e.getUTCMonth(),e.getUTCDate());let i=k(n,a);if(i>52){a>=b(t.nextYear())&&(i=1)}else if(i<1){const e=b(t.previousYear());i=k(e,a)}r=Math.floor(i);break}case"w":{const t=w(e.getUTCFullYear(),e.getUTCMonth()),n=b(t),a=Date.UTC(t.year,t.month,e.getUTCDate());let i=k(n,a);if(i>4){a>=b(t.nextMonth())&&(i=1)}else if(i<1){const e=b(t.previousMonth());i=k(e,a)}r=Math.floor(i);break}case"X":{const t=w(e.getUTCFullYear(),0),n=b(t),a=b(t.nextYear()),i=e.getTime();r=i<n?t.year-1:i>=a?t.year+1:t.year;break}case"x":{const t=w(e.getUTCFullYear(),e.getUTCMonth()),n=b(t),a=t.nextMonth(),i=b(a),o=e.getTime();r=o<n?t.previousMonth().month+1:o>=i?a.month+1:t.month+1;break}case"H":r=e.getUTCHours();break;case"h":r=e.getUTCHours(),0===(r%=12)&&(r=12);break;case"P":r=e.getUTCHours()>=12?"pm":"am";break;case"m":r=e.getUTCMinutes();break;case"s":r=e.getUTCSeconds();break;case"f":r=e.getUTCMilliseconds();break;case"Z":case"z":break;case"C":case"E":r="ISO"}return r};let A=null;function E(e,t,r){var n=0,a=0;if(void 0!==r){const e=parseInt(r);n=Math.floor(e/100),a=e%100}let i;void 0===t?(null===A&&(A=g("[Y0001]-[M01]-[D01]T[H01]:[m01]:[s01].[f001][Z01:01t]")),i=A):i=g(t);const o=new Date(e+60*(60*n+a)*1e3);let s="";return i.parts.forEach(function(e){"literal"===e.type?s+=e.value:s+=function(e,t){var r=x(e,t.component);if(-1!=="YMDdFWwXxHhms".indexOf(t.component))if("Y"===t.component&&-1!==t.n&&(r%=Math.pow(10,t.n)),t.names){if("M"===t.component||"x"===t.component)r=y[r-1];else{if("F"!==t.component)throw{code:"D3133",value:t.component};r=m[r]}t.names===f.UPPER?r=r.toUpperCase():t.names===f.LOWER&&(r=r.toLowerCase()),t.width&&r.length>t.width.max&&(r=r.substring(0,t.width.max))}else r=l(r,t.integerFormat);else if("f"===t.component)r=l(r,t.integerFormat);else if("Z"===t.component||"z"===t.component){const e=100*n+a;if(t.integerFormat.regular)r=l(e,t.integerFormat);else{const i=t.integerFormat.mandatoryDigits;if(1===i||2===i)r=l(n,t.integerFormat),0!==a&&(r+=":"+c(a,"00"));else{if(3!==i&&4!==i)throw{code:"D3134",value:i};r=l(e,t.integerFormat)}}e>=0&&(r="+"+r),"z"===t.component&&(r="GMT"+r),0===e&&"t"===t.presentation2&&(r="Z")}else"P"===t.component&&t.names===f.UPPER&&(r=r.toUpperCase());return r}(o,e)}),s}function D(e){var t={};if("datetime"===e.type)t.type="datetime",t.parts=e.parts.map(function(e){var t={};if("literal"===e.type)t.regex=e.value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");else if("Z"===e.component||"z"===e.component){let r;Array.isArray(e.integerFormat.groupingSeparators)||(r=e.integerFormat.groupingSeparators),t.regex="","z"===e.component&&(t.regex="GMT"),t.regex+="[-+][0-9]+",r&&(t.regex+=r.character+"[0-9]+"),t.parse=function(t){"z"===e.component&&(t=t.substring(3));let n=0,a=0;if(r)n=Number.parseInt(t.substring(0,t.indexOf(r.character))),a=Number.parseInt(t.substring(t.indexOf(r.character)+1));else{t.length-1<=2?n=Number.parseInt(t):(n=Number.parseInt(t.substring(0,3)),a=Number.parseInt(t.substring(3)))}return 60*n+a}}else if(e.integerFormat)e.integerFormat.n=e.n,t=D(e.integerFormat);else{t.regex="[a-zA-Z]+";var r={};if("M"===e.component||"x"===e.component)y.forEach(function(t,n){e.width&&e.width.max?r[t.substring(0,e.width.max)]=n+1:r[t]=n+1});else if("F"===e.component)m.forEach(function(t,n){n>0&&(e.width&&e.width.max?r[t.substring(0,e.width.max)]=n:r[t]=n)});else{if("P"!==e.component)throw{code:"D3133",value:e.component};r={am:0,AM:0,pm:1,PM:1}}t.parse=function(e){return r[e]}}return t.component=e.component,t});else{t.type="integer";const r=e.case===f.UPPER;let n;switch(n=e.n&&e.n>0?0===e.optionalDigits?`{${e.n}}`:`{${e.n-e.optionalDigits},${e.n}}`:"+",e.primary){case p.LETTERS:t.regex=r?"[A-Z]+":"[a-z]+",t.parse=function(e){return function(e,t){for(var r=t.charCodeAt(0),n=0,a=0;a<e.length;a++)n+=(e.charCodeAt(e.length-a-1)-r+1)*Math.pow(26,a);return n}(e,r?"A":"a")};break;case p.ROMAN:t.regex=r?"[MDCLXVI]+":"[mdclxvi]+",t.parse=function(e){return function(e){for(var t=0,r=1,n=e.length-1;n>=0;n--){const a=e[n],i=u[a];i<r?t-=i:(r=i,t+=i)}return t}(r?e:e.toUpperCase())};break;case p.WORDS:t.regex="(?:"+Object.keys(o).concat("and","[\\-, ]").join("|")+")+",t.parse=function(e){return function(e){const t=e.split(/,\s|\sand\s|[\s\\-]/).map(e=>o[e]);let r=[0];return t.forEach(e=>{if(e<100){let t=r.pop();t>=1e3&&(r.push(t),t=0),r.push(t+e)}else r.push(r.pop()*e)}),r.reduce((e,t)=>e+t,0)}(e.toLowerCase())};break;case p.DECIMAL:t.regex=`[0-9]${n}`,e.ordinal&&(t.regex+="(?:th|st|nd|rd)"),t.parse=function(t){let r=t;return e.ordinal&&(r=t.substring(0,t.length-2)),e.regular?r=r.split(",").join(""):e.groupingSeparators.forEach(e=>{r=r.split(e.character).join("")}),48!==e.zeroCode&&(r=r.split("").map(t=>String.fromCodePoint(t.codePointAt(0)-e.zeroCode+48)).join("")),parseInt(r)};break;case p.SEQUENCE:throw{code:"D3130",value:e.token}}}return t}var T=new RegExp("^\\d{4}(-[01]\\d)*(-[0-3]\\d)*(T[0-2]\\d:[0-5]\\d:[0-5]\\d)*(\\.\\d+)?([+-][0-2]\\d:?[0-5]\\d|Z)?$");return{formatInteger:c,parseInteger:function(e,t){if(void 0===e)return;return D(d(t)).parse(e)},fromMillis:function(e,t,r){if(void 0!==e)return E.call(this,e,t,r)},toMillis:function(e,t){if(void 0!==e){if(void 0===t){if(!T.test(e))throw{stack:(new Error).stack,code:"D3110",value:e};return Date.parse(e)}return function(e,t){const r=D(g(t)),n="^"+r.parts.map(e=>"("+e.regex+")").join("")+"$";var a=new RegExp(n,"i").exec(e);if(null!==a){const e=161,t=130,n=84,o=72,s=23,u=47,c={};for(let e=1;e<a.length;e++){const t=r.parts[e-1];t.parse&&(c[t.component]=t.parse(a[e]))}if(0===Object.getOwnPropertyNames(c).length)return;let p=0;const f=e=>{p<<=1,p+=e?1:0},l=e=>!(~e&p||!(e&p));"YXMxWwdD".split("").forEach(e=>f(c[e]));const h=!l(e)&&l(t),d=l(n),v=!d&&l(o);p=0,"PHhmsf".split("").forEach(e=>f(c[e]));const g=!l(s)&&l(u),m=(h?"YD":d?"XxwF":v?"XWF":"YMD")+(g?"Phmsf":"Hmsf"),y=this.environment.timestamp;let b=!1,w=!1;if(m.split("").forEach(e=>{if(void 0===c[e])b?(c[e]=-1!=="MDd".indexOf(e)?1:0,w=!0):c[e]=x(y,e);else if(b=!0,w)throw{code:"D3136"}}),c.M>0?c.M-=1:c.M=0,h){const e=Date.UTC(c.Y,0),t=1e3*(c.d-1)*60*60*24,r=new Date(e+t);c.M=r.getUTCMonth(),c.D=r.getUTCDate()}if(d)throw{code:"D3136"};if(v)throw{code:"D3136"};g&&(c.H=12===c.h?0:c.h,1===c.P&&(c.H+=12));var i=Date.UTC(c.Y,c.M,c.D,c.H,c.m,c.s,c.f);return(c.Z||c.z)&&(i-=60*(c.Z||c.z)*1e3),i}}.call(this,e,t)}}}}();t.exports=a},{"./utils":6}],2:[function(e,t,r){(function(r){(function(){var n=e("./utils");const a=(()=>{"use strict";var e=n.isNumeric,t=n.isArrayOfStrings,a=n.isArrayOfNumbers,i=n.createSequence,o=n.isSequence,s=n.isFunction,u=n.isLambda,c=n.isPromise,p=n.getFunctionArity,f=n.isDeepEqual,l=n.stringToArray;function h(e,t,r){if(void 0!==e){var n=l(e),a=n.length;if(a+t<0&&(t=0),void 0!==r){if(r<=0)return"";var i=t>=0?t+r:a+t+r;return n.slice(t,i).join("")}return n.slice(t).join("")}}function d(e){if(void 0!==e)return l(e).length}async function v(e,t){var r=e.apply(this,[t]);if(c(r)&&(r=await r),r&&"number"!=typeof r.start&&"number"!==r.end&&!Array.isArray(r.groups)&&!s(r.next))throw{code:"T1010",stack:(new Error).stack};return r}function g(e,t){var r;if(void 0!==e){if(t){var n=e.toString().split("e");e=+(n[0]+"e"+(n[1]?+n[1]+t:t))}var a=(r=Math.round(e))-e;return.5===Math.abs(a)&&1===Math.abs(r%2)&&(r-=1),t&&(r=+((n=r.toString().split("e"))[0]+"e"+(n[1]?+n[1]-t:-t))),Object.is(r,-0)&&(r=0),r}}function m(t){if(void 0!==t){var r=!1;if(Array.isArray(t)){if(1===t.length)r=m(t[0]);else if(t.length>1){r=t.filter(function(e){return m(e)}).length>0}}else"string"==typeof t?t.length>0&&(r=!0):e(t)?0!==t&&(r=!0):null!==t&&"object"==typeof t?Object.keys(t).length>0&&(r=!0):"boolean"==typeof t&&!0===t&&(r=!0);return r}}function y(e,t,r,n){var a=[t],i=p(e);return i>=2&&a.push(r),i>=3&&a.push(n),a}function b(e,t){return void 0===e?t:void 0===t?e:(Array.isArray(e)||(e=i(e)),Array.isArray(t)||(t=[t]),e.concat(t))}return{sum:function(e){if(void 0!==e){var t=0;return e.forEach(function(e){t+=e}),t}},count:function(e){return void 0===e?0:e.length},max:function(e){if(void 0!==e&&0!==e.length)return Math.max.apply(Math,e)},min:function(e){if(void 0!==e&&0!==e.length)return Math.min.apply(Math,e)},average:function(e){if(void 0!==e&&0!==e.length){var t=0;return e.forEach(function(e){t+=e}),t/e.length}},string:function(t,r=!1){if(void 0!==t){var n;if("string"==typeof t)n=t;else if(s(t))n="";else{if("number"==typeof t&&!isFinite(t))throw{code:"D3001",value:t,stack:(new Error).stack};var a=r?2:0;Array.isArray(t)&&t.outerWrapper&&(t=t[0]),n=JSON.stringify(t,function(t,r){return null!=r&&r.toPrecision&&e(r)?Number(r.toPrecision(15)):r&&s(r)?"":r},a)}return n}},substring:h,substringBefore:function(e,t){if(void 0!==e){var r=e.indexOf(t);return r>-1?e.substr(0,r):e}},substringAfter:function(e,t){if(void 0!==e){var r=e.indexOf(t);return r>-1?e.substr(r+t.length):e}},lowercase:function(e){if(void 0!==e)return e.toLowerCase()},uppercase:function(e){if(void 0!==e)return e.toUpperCase()},length:d,trim:function(e){if(void 0!==e){var t=e.replace(/[ \t\n\r]+/gm," ");return" "===t.charAt(0)&&(t=t.substring(1))," "===t.charAt(t.length-1)&&(t=t.substring(0,t.length-1)),t}},pad:function(e,t,r){if(void 0!==e){var n;void 0!==r&&0!==r.length||(r=" ");var a=Math.abs(t)-d(e);if(a>0){var i=new Array(a+1).join(r);r.length>1&&(i=h(i,0,a)),n=t>0?e+i:i+e}else n=e;return n}},match:async function(e,t,r){if(void 0!==e){if(r<0)throw{stack:(new Error).stack,value:r,code:"D3040",index:3};var n=i();if(void 0===r||r>0){var a=0,o=await v(t,e);if(void 0!==o)for(;void 0!==o&&(void 0===r||a<r);)n.push({match:o.match,index:o.start,groups:o.groups}),o=await v(o.next),a++}return n}},contains:async function(e,t){if(void 0!==e){return"string"==typeof t?-1!==e.indexOf(t):void 0!==await v(t,e)}},replace:async function(e,t,r,n){if(void 0!==e){var a;if(""===t)throw{code:"D3010",stack:(new Error).stack,value:t,index:2};if(n<0)throw{code:"D3011",stack:(new Error).stack,value:n,index:4};a="string"==typeof r?function(e){for(var t="",n=0,a=r.indexOf("$",n);-1!==a&&n<r.length;){t+=r.substring(n,a),n=a+1;var i=r.charAt(n);if("$"===i)t+="$",n++;else if("0"===i)t+=e.match,n++;else{var o;if(o=0===e.groups.length?1:Math.floor(Math.log(e.groups.length)*Math.LOG10E)+1,a=parseInt(r.substring(n,n+o),10),o>1&&a>e.groups.length&&(a=parseInt(r.substring(n,n+o-1),10)),isNaN(a))t+="$";else{if(e.groups.length>0){var s=e.groups[a-1];void 0!==s&&(t+=s)}n+=a.toString().length}}a=r.indexOf("$",n)}return t+=r.substring(n)}:r;var i="",o=0;if(void 0===n||n>0){var s=0;if("string"==typeof t){for(var u=e.indexOf(t,o);-1!==u&&(void 0===n||s<n);)i+=e.substring(o,u),i+=r,o=u+t.length,s++,u=e.indexOf(t,o);i+=e.substring(o)}else{var p=await v(t,e);if(void 0!==p){for(;void 0!==p&&(void 0===n||s<n);){i+=e.substring(o,p.start);var f=a.apply(this,[p]);if(c(f)&&(f=await f),"string"!=typeof f)throw{code:"D3012",stack:(new Error).stack,value:f};i+=f,o=p.start+p.match.length,s++,p=await v(p.next)}i+=e.substring(o)}else i=e}}else i=e;return i}},split:async function(e,t,r){if(void 0!==e){if(r<0)throw{code:"D3020",stack:(new Error).stack,value:r,index:3};var n=[];if(void 0===r||r>0)if("string"==typeof t)n=e.split(t,r);else{var a=0,i=await v(t,e);if(void 0!==i){for(var o=0;void 0!==i&&(void 0===r||a<r);)n.push(e.substring(o,i.start)),o=i.end,i=await v(i.next),a++;(void 0===r||a<r)&&n.push(e.substring(o))}else n.push(e)}return n}},join:function(e,t){if(void 0!==e)return void 0===t&&(t=""),e.join(t)},formatNumber:function(e,t,r){if(void 0!==e){var n={"decimal-separator":".","grouping-separator":",","exponent-separator":"e",infinity:"Infinity","minus-sign":"-",NaN:"NaN",percent:"%","per-mille":"‰","zero-digit":"0",digit:"#","pattern-separator":";"};void 0!==r&&Object.keys(r).forEach(function(e){n[e]=r[e]});for(var a=[],i=n["zero-digit"].charCodeAt(0),o=i;o<i+10;o++)a.push(String.fromCharCode(o));var s=a.concat([n["decimal-separator"],n["exponent-separator"],n["grouping-separator"],n.digit,n["pattern-separator"]]),u=t.split(n["pattern-separator"]);if(u.length>2)throw{code:"D3080",stack:(new Error).stack};var c=u.map(function(e){var t,r,a,i,o=function(){for(var t,r=0;r<e.length;r++)if(t=e.charAt(r),-1!==s.indexOf(t)&&t!==n["exponent-separator"])return e.substring(0,r)}(),u=function(){for(var t,r=e.length-1;r>=0;r--)if(t=e.charAt(r),-1!==s.indexOf(t)&&t!==n["exponent-separator"])return e.substring(r+1)}(),c=e.substring(o.length,e.length-u.length),p=e.indexOf(n["exponent-separator"],o.length);-1===p||p>e.length-u.length?(t=c,r=void 0):(t=c.substring(0,p),r=c.substring(p+1));var f=t.indexOf(n["decimal-separator"]);return-1===f?(a=t,i=u):(a=t.substring(0,f),i=t.substring(f+1)),{prefix:o,suffix:u,activePart:c,mantissaPart:t,exponentPart:r,integerPart:a,fractionalPart:i,subpicture:e}});c.forEach(function(e){var t,r,i=e.subpicture,o=i.indexOf(n["decimal-separator"]);o!==i.lastIndexOf(n["decimal-separator"])&&(t="D3081"),i.indexOf(n.percent)!==i.lastIndexOf(n.percent)&&(t="D3082"),i.indexOf(n["per-mille"])!==i.lastIndexOf(n["per-mille"])&&(t="D3083"),-1!==i.indexOf(n.percent)&&-1!==i.indexOf(n["per-mille"])&&(t="D3084");var u=!1;for(r=0;r<e.mantissaPart.length;r++){var c=e.mantissaPart.charAt(r);if(-1!==a.indexOf(c)||c===n.digit){u=!0;break}}u||(t="D3085"),-1!==e.activePart.split("").map(function(e){return-1===s.indexOf(e)?"p":"a"}).join("").indexOf("p")&&(t="D3086"),-1!==o?i.charAt(o-1)!==n["grouping-separator"]&&i.charAt(o+1)!==n["grouping-separator"]||(t="D3087"):e.integerPart.charAt(e.integerPart.length-1)===n["grouping-separator"]&&(t="D3088"),-1!==i.indexOf(n["grouping-separator"]+n["grouping-separator"])&&(t="D3089");var p=e.integerPart.indexOf(n.digit);-1!==p&&e.integerPart.substring(0,p).split("").filter(function(e){return a.indexOf(e)>-1}).length>0&&(t="D3090"),-1!==(p=e.fractionalPart.lastIndexOf(n.digit))&&e.fractionalPart.substring(p).split("").filter(function(e){return a.indexOf(e)>-1}).length>0&&(t="D3091");var f="string"==typeof e.exponentPart;if(f&&e.exponentPart.length>0&&(-1!==i.indexOf(n.percent)||-1!==i.indexOf(n["per-mille"]))&&(t="D3092"),f&&(0===e.exponentPart.length||e.exponentPart.split("").filter(function(e){return-1===a.indexOf(e)}).length>0)&&(t="D3093"),t)throw{code:t,stack:(new Error).stack}});var p,f,l,h,d=c.map(function(e){var t=function(t,r){for(var i=[],o=t.indexOf(n["grouping-separator"]);-1!==o;){var s=(r?t.substring(0,o):t.substring(o)).split("").filter(function(e){return-1!==a.indexOf(e)||e===n.digit}).length;i.push(s),o=e.integerPart.indexOf(n["grouping-separator"],o+1)}return i},r=t(e.integerPart),i=function(e){if(0===e.length)return 0;for(var t=function(e,r){return 0===r?e:t(r,e%r)},r=e.reduce(t),n=1;n<=e.length;n++)if(-1===e.indexOf(n*r))return 0;return r}(r),o=t(e.fractionalPart,!0),s=e.integerPart.split("").filter(function(e){return-1!==a.indexOf(e)}).length,u=s,c=e.fractionalPart.split(""),p=c.filter(function(e){return-1!==a.indexOf(e)}).length,f=c.filter(function(e){return-1!==a.indexOf(e)||e===n.digit}).length,l="string"==typeof e.exponentPart;0===s&&0===f&&(l?(p=1,f=1):s=1),l&&0===s&&-1!==e.integerPart.indexOf(n.digit)&&(s=1),0===s&&0===p&&(p=1);var h=0;return l&&(h=e.exponentPart.split("").filter(function(e){return-1!==a.indexOf(e)}).length),{integerPartGroupingPositions:r,regularGrouping:i,minimumIntegerPartSize:s,scalingFactor:u,prefix:e.prefix,fractionalPartGroupingPositions:o,minimumFactionalPartSize:p,maximumFactionalPartSize:f,minimumExponentSize:h,suffix:e.suffix,picture:e.subpicture}}),v=n["minus-sign"],m=n["zero-digit"],y=n["decimal-separator"],b=n["grouping-separator"];if(1===d.length&&(d.push(JSON.parse(JSON.stringify(d[0]))),d[1].prefix=v+d[1].prefix),f=-1!==(p=e>=0?d[0]:d[1]).picture.indexOf(n.percent)?100*e:-1!==p.picture.indexOf(n["per-mille"])?1e3*e:e,0===p.minimumExponentSize)l=f;else{var w=Math.pow(10,p.scalingFactor),k=Math.pow(10,p.scalingFactor-1);for(l=f,h=0;l<k;)l*=10,h-=1;for(;l>w;)l/=10,h+=1}var x=function(e,t){var r=Math.abs(e).toFixed(t);return"0"!==m&&(r=r.split("").map(function(e){return e>="0"&&e<="9"?a[e.charCodeAt(0)-48]:e}).join("")),r},A=x(g(l,p.maximumFactionalPartSize),p.maximumFactionalPartSize),E=A.indexOf(".");for(-1===E?A+=y:A=A.replace(".",y);A.charAt(0)===m;)A=A.substring(1);for(;A.charAt(A.length-1)===m;)A=A.substring(0,A.length-1);E=A.indexOf(y);var D=p.minimumIntegerPartSize-E,T=p.minimumFactionalPartSize-(A.length-E-1);if(A=(D>0?new Array(D+1).join(m):"")+A,A+=T>0?new Array(T+1).join(m):"",E=A.indexOf(y),p.regularGrouping>0)for(var S=Math.floor((E-1)/p.regularGrouping),O=1;O<=S;O++)A=[A.slice(0,E-O*p.regularGrouping),b,A.slice(E-O*p.regularGrouping)].join("");else p.integerPartGroupingPositions.forEach(function(e){A=[A.slice(0,E-e),b,A.slice(E-e)].join(""),E++});if(E=A.indexOf(y),p.fractionalPartGroupingPositions.forEach(function(e){A=[A.slice(0,e+E+1),b,A.slice(e+E+1)].join("")}),E=A.indexOf(y),-1!==p.picture.indexOf(y)&&E!==A.length-1||(A=A.substring(0,A.length-1)),void 0!==h){var P=x(h,0);(D=p.minimumExponentSize-P.length)>0&&(P=new Array(D+1).join(m)+P),A=A+n["exponent-separator"]+(h<0?v:"")+P}return A=p.prefix+A+p.suffix}},formatBase:function(e,t){if(void 0!==e){if(e=g(e),(t=void 0===t?10:g(t))<2||t>36)throw{code:"D3100",stack:(new Error).stack,value:t};return e.toString(t)}},number:function(e){var t;if(void 0!==e){if("number"==typeof e)t=e;else if("string"==typeof e&&/^-?[0-9]+(\.[0-9]+)?([Ee][-+]?[0-9]+)?$/.test(e)&&!isNaN(parseFloat(e))&&isFinite(e))t=parseFloat(e);else if("string"==typeof e&&/^(0[xX][0-9A-Fa-f]+)|(0[oO][0-7]+)|(0[bB][0-1]+)$/.test(e))t=Number(e);else if(!0===e)t=1;else{if(!1!==e)throw{code:"D3030",value:e,stack:(new Error).stack,index:1};t=0}return t}},floor:function(e){if(void 0!==e)return Math.floor(e)},ceil:function(e){if(void 0!==e)return Math.ceil(e)},round:g,abs:function(e){if(void 0!==e)return Math.abs(e)},sqrt:function(e){if(void 0!==e){if(e<0)throw{stack:(new Error).stack,code:"D3060",index:1,value:e};return Math.sqrt(e)}},power:function(e,t){var r;if(void 0!==e){if(r=Math.pow(e,t),!isFinite(r))throw{stack:(new Error).stack,code:"D3061",index:1,value:e,exp:t};return r}},random:function(){return Math.random()},boolean:m,not:function(e){if(void 0!==e)return!m(e)},map:async function(e,t){if(void 0!==e){for(var r=i(),n=0;n<e.length;n++){var a=y(t,e[n],n,e),o=await t.apply(this,a);void 0!==o&&r.push(o)}return r}},zip:function(){for(var e=[],t=Array.prototype.slice.call(arguments),r=Math.min.apply(Math,t.map(function(e){return Array.isArray(e)?e.length:0})),n=0;n<r;n++){var a=t.map(e=>e[n]);e.push(a)}return e},filter:async function(e,t){if(void 0!==e){for(var r=i(),n=0;n<e.length;n++){var a=e[n],o=y(t,a,n,e);m(await t.apply(this,o))&&r.push(a)}return r}},single:async function(e,t){if(void 0!==e){for(var r,n=!1,a=0;a<e.length;a++){var i=e[a],o=!0;if(void 0!==t){var s=y(t,i,a,e);o=m(await t.apply(this,s))}if(o){if(n)throw{stack:(new Error).stack,code:"D3138",index:a};r=i,n=!0}}if(!n)throw{stack:(new Error).stack,code:"D3139"};return r}},foldLeft:async function(e,t,r){if(void 0!==e){var n,a,i=p(t);if(i<2)throw{stack:(new Error).stack,code:"D3050",index:1};for(void 0===r&&e.length>0?(n=e[0],a=1):(n=r,a=0);a<e.length;){var o=[n,e[a]];i>=3&&o.push(a),i>=4&&o.push(e),n=await t.apply(this,o),a++}return n}},sift:async function(e,t){var r={};for(var n in e){var a=e[n],i=y(t,a,n,e);m(await t.apply(this,i))&&(r[n]=a)}return 0===Object.keys(r).length&&(r=void 0),r},keys:function e(t){var r=i();if(Array.isArray(t)){var n={};t.forEach(function(t){e(t).forEach(function(e){n[e]=!0})}),r=e(n)}else null===t||"object"!=typeof t||s(t)||Object.keys(t).forEach(e=>r.push(e));return r},lookup:function e(t,r){var n;if(Array.isArray(t)){n=i();for(var a=0;a<t.length;a++){var o=e(t[a],r);void 0!==o&&(Array.isArray(o)?o.forEach(e=>n.push(e)):n.push(o))}}else null===t||"object"!=typeof t||s(t)||(n=t[r]);return n},append:b,exists:function(e){return void 0!==e},spread:function e(t){var r=i();if(Array.isArray(t))t.forEach(function(t){r=b(r,e(t))});else if(null===t||"object"!=typeof t||u(t))r=t;else for(var n in t){var a={};a[n]=t[n],r.push(a)}return r},merge:function(e){if(void 0!==e){var t={};return e.forEach(function(e){for(var r in e)t[r]=e[r]}),t}},reverse:function(e){if(void 0!==e){if(e.length<=1)return e;for(var t=e.length,r=new Array(t),n=0;n<t;n++)r[t-n-1]=e[n];return r}},each:async function(e,t){var r=i();for(var n in e){var a=y(t,e[n],n,e),o=await t.apply(this,a);void 0!==o&&r.push(o)}return r},error:function(e){throw{code:"D3137",stack:(new Error).stack,message:e||"$error() function evaluated"}},assert:function(e,t){if(!e)throw{code:"D3141",stack:(new Error).stack,message:t||"$assert() statement failed"}},type:function(t){if(void 0!==t)return null===t?"null":e(t)?"number":"string"==typeof t?"string":"boolean"==typeof t?"boolean":Array.isArray(t)?"array":s(t)?"function":"object"},sort:async function(e,r){if(void 0!==e){if(e.length<=1)return e;var n;if(void 0===r){if(!a(e)&&!t(e))throw{stack:(new Error).stack,code:"D3070",index:1};n=async function(e,t){return e>t}}else n=r;var i=async function(e){if(!Array.isArray(e)||e.length<=1)return e;var t=Math.floor(e.length/2),r=e.slice(0,t),a=e.slice(t);return r=await i(r),a=await i(a),await async function(e,t){var r=async function(e,t,a){0===t.length?Array.prototype.push.apply(e,a):0===a.length?Array.prototype.push.apply(e,t):await n(t[0],a[0])?(e.push(a[0]),await r(e,t,a.slice(1))):(e.push(t[0]),await r(e,t.slice(1),a))},a=[];return await r(a,e,t),a}(r,a)};return await i(e)}},shuffle:function(e){if(void 0!==e){if(e.length<=1)return e;for(var t=new Array(e.length),r=0;r<e.length;r++){var n=Math.floor(Math.random()*(r+1));r!==n&&(t[r]=t[n]),t[n]=e[r]}return t}},distinct:function(e){if(void 0!==e){if(!Array.isArray(e)||e.length<=1)return e;for(var t=o(e)?i():[],r=0;r<e.length;r++){for(var n=e[r],a=!1,s=0;s<t.length;s++)if(f(n,t[s])){a=!0;break}a||t.push(n)}return t}},base64encode:function(e){if(void 0!==e)return("undefined"!=typeof window?window.btoa:function(e){return new r.Buffer.from(e,"binary").toString("base64")})(e)},base64decode:function(e){if(void 0!==e)return("undefined"!=typeof window?window.atob:function(e){return new r.Buffer.from(e,"base64").toString("binary")})(e)},encodeUrlComponent:function(e){if(void 0!==e){var t;try{t=encodeURIComponent(e)}catch(t){throw{code:"D3140",stack:(new Error).stack,value:e,functionName:"encodeUrlComponent"}}return t}},encodeUrl:function(e){if(void 0!==e){var t;try{t=encodeURI(e)}catch(t){throw{code:"D3140",stack:(new Error).stack,value:e,functionName:"encodeUrl"}}return t}},decodeUrlComponent:function(e){if(void 0!==e){var t;try{t=decodeURIComponent(e)}catch(t){throw{code:"D3140",stack:(new Error).stack,value:e,functionName:"decodeUrlComponent"}}return t}},decodeUrl:function(e){if(void 0!==e){var t;try{t=decodeURI(e)}catch(t){throw{code:"D3140",stack:(new Error).stack,value:e,functionName:"decodeUrl"}}return t}}}})();t.exports=a}).call(this)}).call(this,"undefined"!=typeof global?global:"undefined"!=typeof self?self:"undefined"!=typeof window?window:{})},{"./utils":6}],3:[function(e,t,r){var n=e("./datetime"),a=e("./functions"),i=e("./utils"),o=e("./parser"),s=e("./signature"),u=function(){"use strict";var e=i.isNumeric,t=i.isArrayOfStrings,r=i.isArrayOfNumbers,u=i.createSequence,c=i.isSequence,p=i.isFunction,f=i.isLambda,l=i.isIterable,h=i.isPromise,d=i.getFunctionArity,v=i.isDeepEqual,g=F(null);async function m(r,n,i){var o,s=i.lookup("__evaluate_entry");switch(s&&await s(r,n,i),r.type){case"path":o=await async function(e,t,r){var n,a;n=Array.isArray(t)&&"variable"!==e.steps[0].type?t:u(t);for(var i=!1,o=void 0,s=0;s<e.steps.length;s++){var c=e.steps[s];if(c.tuple&&(i=!0),0===s&&c.consarray?a=await m(c,n,r):i?o=await k(c,n,o,r):a=await b(c,n,r,s===e.steps.length-1),!i&&(void 0===a||0===a.length))break;void 0===c.focus&&(n=a)}if(i)if(e.tuple)a=o;else for(a=u(),s=0;s<o.length;s++)a.push(o[s]["@"]);e.keepSingletonArray&&(Array.isArray(a)&&a.cons&&!a.sequence&&(a=u(a)),a.keepSingleton=!0);e.hasOwnProperty("group")&&(a=await E(e.group,i?o:a,r));return a}(r,n,i);break;case"binary":o=await async function(t,r,n){var i,o=await m(t.lhs,r,n),s=t.value,u=async()=>await m(t.rhs,r,n);if("and"===s||"or"===s)try{return await async function(e,t,r){var n,a=A(e);switch(r){case"and":n=a&&A(await t());break;case"or":n=a||A(await t())}return n}(o,u,s)}catch(e){throw e.position=t.position,e.token=s,e}var c=await u();try{switch(s){case"+":case"-":case"*":case"/":case"%":i=function(t,r,n){var a;if(void 0!==t&&!e(t))throw{code:"T2001",stack:(new Error).stack,value:t};if(void 0!==r&&!e(r))throw{code:"T2002",stack:(new Error).stack,value:r};if(void 0===t||void 0===r)return a;switch(n){case"+":a=t+r;break;case"-":a=t-r;break;case"*":a=t*r;break;case"/":a=t/r;break;case"%":a=t%r}return a}(o,c,s);break;case"=":case"!=":i=function(e,t,r){var n;if(void 0===e||void 0===t)return!1;switch(r){case"=":n=v(e,t);break;case"!=":n=!v(e,t)}return n}(o,c,s);break;case"<":case"<=":case">":case">=":i=function(e,t,r){var n,a=typeof e,i=typeof t;if("undefined"!==a&&"string"!==a&&"number"!==a||"undefined"!==i&&"string"!==i&&"number"!==i)throw{code:"T2010",stack:(new Error).stack,value:"string"!==a&&"number"!==a?e:t};if("undefined"===a||"undefined"===i)return;if(a!==i)throw{code:"T2009",stack:(new Error).stack,value:e,value2:t};switch(r){case"<":n=e<t;break;case"<=":n=e<=t;break;case">":n=e>t;break;case">=":n=e>=t}return n}(o,c,s);break;case"&":i=function(e,t){var r="",n="";void 0!==e&&(r=a.string(e));void 0!==t&&(n=a.string(t));return r.concat(n)}(o,c);break;case"..":i=function(e,t){var r;if(void 0!==e&&!Number.isInteger(e))throw{code:"T2003",stack:(new Error).stack,value:e};if(void 0!==t&&!Number.isInteger(t))throw{code:"T2004",stack:(new Error).stack,value:t};if(void 0===e||void 0===t)return r;if(e>t)return r;var n=t-e+1;if(n>1e7)throw{code:"D2014",stack:(new Error).stack,value:n};r=new Array(n);for(var a=e,i=0;a<=t;a++,i++)r[i]=a;return r.sequence=!0,r}(o,c);break;case"in":i=function(e,t){var r=!1;if(void 0===e||void 0===t)return!1;Array.isArray(t)||(t=[t]);for(var n=0;n<t.length;n++)if(t[n]===e){r=!0;break}return r}(o,c)}}catch(e){throw e.position=t.position,e.token=s,e}return i}(r,n,i);break;case"unary":o=await async function(t,r,n){var i;switch(t.value){case"-":if(void 0===(i=await m(t.expression,r,n)))i=void 0;else{if(!e(i))throw{code:"D1002",stack:(new Error).stack,position:t.position,token:t.value,value:i};i=-i}break;case"[":i=[];let u=await Promise.all(t.expressions.map(async(e,t)=>(n.isParallelCall=t>0,[e,await m(e,r,n)])));for(let e of u){var[o,s]=e;void 0!==s&&("["===o.value?i.push(s):i=a.append(i,s))}t.consarray&&Object.defineProperty(i,"cons",{enumerable:!1,configurable:!1,value:!0});break;case"{":i=await E(t,r,n)}return i}(r,n,i);break;case"name":o=function(e,t,r){return a.lookup(t,e.value)}(r,n);break;case"string":case"number":case"value":o=function(e){return e.value}(r);break;case"wildcard":o=function(e,t){var r=u();Array.isArray(t)&&t.outerWrapper&&t.length>0&&(t=t[0]);null!==t&&"object"==typeof t&&Object.keys(t).forEach(function(e){var n=t[e];Array.isArray(n)?(n=function e(t,r){void 0===r&&(r=[]);Array.isArray(t)?t.forEach(function(t){e(t,r)}):r.push(t);return r}(n),r=a.append(r,n)):r.push(n)});return r}(0,n);break;case"descendant":o=function(e,t){var r,n=u();void 0!==t&&(!function e(t,r){Array.isArray(t)||r.push(t);Array.isArray(t)?t.forEach(function(t){e(t,r)}):null!==t&&"object"==typeof t&&Object.keys(t).forEach(function(n){e(t[n],r)})}(t,n),r=1===n.length?n[0]:n);return r}(0,n);break;case"parent":o=i.lookup(r.slot.label);break;case"condition":o=await async function(e,t,r){var n,i=await m(e.condition,t,r);a.boolean(i)?n=await m(e.then,t,r):void 0!==e.else&&(n=await m(e.else,t,r));return n}(r,n,i);break;case"block":o=await async function(e,t,r){for(var n,a=F(r),i=0;i<e.expressions.length;i++)n=await m(e.expressions[i],t,a);return n}(r,n,i);break;case"bind":o=await async function(e,t,r){var n=await m(e.rhs,t,r);return r.bind(e.lhs.value,n),n}(r,n,i);break;case"regex":o=function(e){var t=new R.RegexEngine(e.value),r=function(n,a){var i;t.lastIndex=a||0;var o=t.exec(n);if(null!==o){if(i={match:o[0],start:o.index,end:o.index+o[0].length,groups:[]},o.length>1)for(var s=1;s<o.length;s++)i.groups.push(o[s]);i.next=function(){if(!(t.lastIndex>=n.length)){var a=r(n,t.lastIndex);if(a&&""===a.match)throw{code:"D1004",stack:(new Error).stack,position:e.position,value:e.value.source};return a}}}return i};return r}(r);break;case"function":o=await S(r,n,i);break;case"variable":o=function(e,t,r){var n;n=""===e.value?t&&t.outerWrapper?t[0]:t:r.lookup(e.value);return n}(r,n,i);break;case"lambda":o=function(e,t,r){var n={_jsonata_lambda:!0,input:t,environment:r,arguments:e.arguments,signature:e.signature,body:e.body};!0===e.thunk&&(n.thunk=!0);return n.apply=async function(e,a){return await O(n,a,t,e?e.environment:r)},n}(r,n,i);break;case"partial":o=await async function(e,t,r){for(var n,a=[],i=0;i<e.arguments.length;i++){var o=e.arguments[i];"operator"===o.type&&"?"===o.value?a.push(o):a.push(await m(o,t,r))}var s=await m(e.procedure,t,r);if(void 0===s&&"path"===e.procedure.type&&r.lookup(e.procedure.steps[0].value))throw{code:"T1007",stack:(new Error).stack,position:e.position,token:e.procedure.steps[0].value};if(f(s))n=M(s,a);else if(s&&!0===s._jsonata_function)n=C(s.implementation,a);else{if("function"!=typeof s)throw{code:"T1008",stack:(new Error).stack,position:e.position,token:"path"===e.procedure.type?e.procedure.steps[0].value:e.procedure.value};n=C(s,a)}return n}(r,n,i);break;case"apply":o=await async function(e,t,r){var n,a=await m(e.lhs,t,r);if("function"===e.rhs.type)n=await S(e.rhs,t,r,{context:a});else{var i=await m(e.rhs,t,r);if(!p(i))throw{code:"T2006",stack:(new Error).stack,position:e.position,value:i};if(p(a)){var o=await m(T,null,r);n=await O(o,[a,i],null,r)}else n=await O(i,[a],null,r)}return n}(r,n,i);break;case"transform":o=function(e,r,n){return U(async function(r){if(void 0!==r){var a=n.lookup("clone");if(!p(a))throw{code:"T2013",stack:(new Error).stack,position:e.position};var i=await O(a,[r],null,n),o=await m(e.pattern,i,n);if(void 0!==o){Array.isArray(o)||(o=[o]);for(var s=0;s<o.length;s++){var u=o[s];if(u&&(u.isPrototypeOf(i)||u instanceof Object.constructor))throw{code:"D1010",stack:(new Error).stack,position:e.position};var c=await m(e.update,u,n),f=typeof c;if("undefined"!==f){if("object"!==f||null===c||Array.isArray(c))throw{code:"T2011",stack:(new Error).stack,position:e.update.position,value:c};for(var l in c)u[l]=c[l]}if(void 0!==e.delete){var h=await m(e.delete,u,n);if(void 0!==h){var d=h;if(Array.isArray(h)||(h=[h]),!t(h))throw{code:"T2012",stack:(new Error).stack,position:e.delete.position,value:d};for(var v=0;v<h.length;v++)"object"==typeof u&&null!==u&&delete u[h[v]]}}}}return i}},"<(oa):o>")}(r,0,i)}if(Object.prototype.hasOwnProperty.call(r,"predicate"))for(var l=0;l<r.predicate.length;l++)o=await x(r.predicate[l].expr,o,i);"path"!==r.type&&Object.prototype.hasOwnProperty.call(r,"group")&&(o=await E(r.group,o,i));var h=i.lookup("__evaluate_exit");return h&&await h(r,n,i,o),o&&c(o)&&!o.tupleStream&&(r.keepArray&&(o.keepSingleton=!0),0===o.length?o=void 0:1===o.length&&(o=o.keepSingleton?o:o[0])),o}function y(e,t){var r=F(e);for(const e in t)r.bind(e,t[e]);return r}async function b(e,t,r,n){var a;if("sort"===e.type)return a=await D(e,t,r),e.stages&&(a=await w(e.stages,a,r)),a;a=u();for(var i=0;i<t.length;i++){var o=await m(e,t[i],r);if(e.stages)for(var s=0;s<e.stages.length;s++)o=await x(e.stages[s].expr,o,r);void 0!==o&&a.push(o)}var p=u();return n&&1===a.length&&Array.isArray(a[0])&&!c(a[0])?p=a[0]:a.forEach(function(e){!Array.isArray(e)||e.cons?p.push(e):e.forEach(e=>p.push(e))}),p}async function w(e,t,r){for(var n=t,a=0;a<e.length;a++){var i=e[a];switch(i.type){case"filter":n=await x(i.expr,n,r);break;case"index":for(var o=0;o<n.length;o++){n[o][i.value]=o}}}return n}async function k(e,t,r,n){var a;if("sort"===e.type){if(r)a=await D(e,r,n);else{var i=await D(e,t,n);(a=u()).tupleStream=!0;for(var o=0;o<i.length;o++){var s={"@":i[o]};s[e.index]=o,a.push(s)}}return e.stages&&(a=await w(e.stages,a,n)),a}(a=u()).tupleStream=!0;var c=n;void 0===r&&(r=t.map(e=>({"@":e})));for(var p=0;p<r.length;p++){c=y(n,r[p]);var f=await m(e,r[p]["@"],c);if(void 0!==f){Array.isArray(f)||(f=[f]);for(var l=0;l<f.length;l++)s={},Object.assign(s,r[p]),f.tupleStream?Object.assign(s,f[l]):(e.focus?(s[e.focus]=f[l],s["@"]=r[p]["@"]):s["@"]=f[l],e.index&&(s[e.index]=l),e.ancestor&&(s[e.ancestor.label]=r[p]["@"])),a.push(s)}}return e.stages&&(a=await w(e.stages,a,n)),a}async function x(t,n,i){var o=u();if(n&&n.tupleStream&&(o.tupleStream=!0),Array.isArray(n)||(n=u(n)),"number"===t.type){var s=Math.floor(t.value);s<0&&(s=n.length+s),void 0!==(c=n[s])&&(Array.isArray(c)?o=c:o.push(c))}else for(s=0;s<n.length;s++){var c,p=c=n[s],f=i;n.tupleStream&&(p=c["@"],f=y(i,c));var l=await m(t,p,f);e(l)&&(l=[l]),r(l)?l.forEach(function(e){var t=Math.floor(e);t<0&&(t=n.length+t),t===s&&o.push(c)}):a.boolean(l)&&o.push(c)}return o}function A(e){var t=a.boolean(e);return void 0!==t&&t}async function E(e,t,r){var n={},i={},o=!(!t||!t.tupleStream);Array.isArray(t)||(t=u(t)),0===t.length&&t.push(void 0);for(var s=0;s<t.length;s++)for(var c=t[s],p=o?y(r,c):r,f=0;f<e.lhs.length;f++){var l,h=e.lhs[f];if("string"!=typeof(l=await m(h[0],o?c["@"]:c,p))&&void 0!==l)throw{code:"T1003",stack:(new Error).stack,position:e.position,value:l};if(void 0!==l){var d={data:c,exprIndex:f};if(i.hasOwnProperty(l)){if(i[l].exprIndex!==f)throw{code:"D1009",stack:(new Error).stack,position:e.position,value:l};i[l].data=a.append(i[l].data,c)}else i[l]=d}}let v=await Promise.all(Object.keys(i).map(async(t,n)=>{let s=i[t];var u=s.data,c=r;if(o){var p=function(e){if(!Array.isArray(e))return e;var t={};Object.assign(t,e[0]);for(var r=1;r<e.length;r++)for(const n in e[r])t[n]=a.append(t[n],e[r][n]);return t}(s.data);u=p["@"],delete p["@"],c=y(r,p)}return r.isParallelCall=n>0,[t,await m(e.lhs[s.exprIndex][1],u,c)]}));for(let e of v){var[l,g]=await e;void 0!==g&&(n[l]=g)}return n}async function D(e,t,r){var n=t,i=!!t.tupleStream,o={environment:r,input:t};return await a.sort.apply(o,[n,async function(t,n){for(var a=0,o=0;0===a&&o<e.terms.length;o++){var s=e.terms[o],u=t,c=r;i&&(u=t["@"],c=y(r,t));var p=await m(s.expression,u,c);u=n,c=r,i&&(u=n["@"],c=y(r,n));var f=await m(s.expression,u,c),l=typeof p,h=typeof f;if("undefined"!==l)if("undefined"!==h){if("string"!==l&&"number"!==l||"string"!==h&&"number"!==h)throw{code:"T2008",stack:(new Error).stack,position:e.position,value:"string"!==l&&"number"!==l?p:f};if(l!==h)throw{code:"T2007",stack:(new Error).stack,position:e.position,value:p,value2:f};p!==f&&(a=p<f?-1:1,!0===s.descending&&(a=-a))}else a=-1;else a="undefined"===h?0:1}return 1===a}])}var T=o("function($f, $g) { function($x){ $g($f($x)) } }");async function S(e,t,r,n){var a,i=await m(e.procedure,t,r);if(void 0===i&&"path"===e.procedure.type&&r.lookup(e.procedure.steps[0].value))throw{code:"T1005",stack:(new Error).stack,position:e.position,token:e.procedure.steps[0].value};var o=[];void 0!==n&&o.push(n.context);for(var s=0;s<e.arguments.length;s++){const n=await m(e.arguments[s],t,r);if(p(n)){const e=async function(...e){return await O(n,e,null,r)};e.arity=d(n),o.push(e)}else o.push(n)}var u="path"===e.procedure.type?e.procedure.steps[0].value:e.procedure.value;try{"object"==typeof i&&(i.token=u,i.position=e.position),a=await O(i,o,t,r)}catch(t){throw t.position||(t.position=e.position),t.token||(t.token=u),t}return a}async function O(e,t,r,n){var a;for(a=await P(e,t,r,n);f(a)&&!0===a.thunk;){var i=await m(a.body.procedure,a.input,a.environment);"variable"===a.body.procedure.type&&(i.token=a.body.procedure.value),i.position=a.body.procedure.position;for(var o=[],s=0;s<a.body.arguments.length;s++)o.push(await m(a.body.arguments[s],a.input,a.environment));a=await P(i,o,r,n)}return a}async function P(e,t,r,n){var a;try{var i=t;if(e&&(i=function(e,t,r){if(void 0===e)return t;return e.validate(t,r)}(e.signature,t,r)),f(e))a=await async function(e,t){var r,n=F(e.environment);e.arguments.forEach(function(e,r){n.bind(e.value,t[r])}),r="function"==typeof e.body?await async function(e,t){var r=j(e).map(function(e){return t.lookup(e.trim())}),n={environment:t},a=e.apply(n,r);h(a)&&(a=await a);return a}(e.body,n):await m(e.body,e.input,n);return r}(e,i);else if(e&&!0===e._jsonata_function){var o={environment:n,input:r};a=e.implementation.apply(o,i),l(a)&&(a=a.next().value),h(a)&&(a=await a)}else{if("function"!=typeof e)throw{code:"T1006",stack:(new Error).stack};a=e.apply(r,i),h(a)&&(a=await a)}}catch(t){throw e&&(void 0===t.token&&void 0!==e.token&&(t.token=e.token),t.position=e.position||t.position),t}return a}function M(e,t){var r=F(e.environment),n=[];return e.arguments.forEach(function(e,a){var i=t[a];i&&"operator"===i.type&&"?"===i.value?n.push(e):r.bind(e.value,i)}),{_jsonata_lambda:!0,input:e.input,environment:r,arguments:n,body:e.body}}function C(e,t){var r=j(e),n="function("+(r=r.map(function(e){return"$"+e.trim()})).join(", ")+"){ _ }",a=o(n);return a.body=e,M(a,t)}function j(e){var t=e.toString();return/\(([^)]*)\)/.exec(t)[1].split(",")}function U(e,t){var r={_jsonata_function:!0,implementation:e};return void 0!==t&&(r.signature=s(t)),r}function F(e){var t={};return{bind:function(e,r){t[e]=r},lookup:function(r){var n;return t.hasOwnProperty(r)?n=t[r]:e&&(n=e.lookup(r)),n},timestamp:e?e.timestamp:null,async:!!e&&e.async,isParallelCall:!!e&&e.isParallelCall,global:e?e.global:{ancestry:[null]}}}g.bind("sum",U(a.sum,"<a<n>:n>")),g.bind("count",U(a.count,"<a:n>")),g.bind("max",U(a.max,"<a<n>:n>")),g.bind("min",U(a.min,"<a<n>:n>")),g.bind("average",U(a.average,"<a<n>:n>")),g.bind("string",U(a.string,"<x-b?:s>")),g.bind("substring",U(a.substring,"<s-nn?:s>")),g.bind("substringBefore",U(a.substringBefore,"<s-s:s>")),g.bind("substringAfter",U(a.substringAfter,"<s-s:s>")),g.bind("lowercase",U(a.lowercase,"<s-:s>")),g.bind("uppercase",U(a.uppercase,"<s-:s>")),g.bind("length",U(a.length,"<s-:n>")),g.bind("trim",U(a.trim,"<s-:s>")),g.bind("pad",U(a.pad,"<s-ns?:s>")),g.bind("match",U(a.match,"<s-f<s:o>n?:a<o>>")),g.bind("contains",U(a.contains,"<s-(sf):b>")),g.bind("replace",U(a.replace,"<s-(sf)(sf)n?:s>")),g.bind("split",U(a.split,"<s-(sf)n?:a<s>>")),g.bind("join",U(a.join,"<a<s>s?:s>")),g.bind("formatNumber",U(a.formatNumber,"<n-so?:s>")),g.bind("formatBase",U(a.formatBase,"<n-n?:s>")),g.bind("formatInteger",U(n.formatInteger,"<n-s:s>")),g.bind("parseInteger",U(n.parseInteger,"<s-s:n>")),g.bind("number",U(a.number,"<(nsb)-:n>")),g.bind("floor",U(a.floor,"<n-:n>")),g.bind("ceil",U(a.ceil,"<n-:n>")),g.bind("round",U(a.round,"<n-n?:n>")),g.bind("abs",U(a.abs,"<n-:n>")),g.bind("sqrt",U(a.sqrt,"<n-:n>")),g.bind("power",U(a.power,"<n-n:n>")),g.bind("random",U(a.random,"<:n>")),g.bind("boolean",U(a.boolean,"<x-:b>")),g.bind("not",U(a.not,"<x-:b>")),g.bind("map",U(a.map,"<af>")),g.bind("zip",U(a.zip,"<a+>")),g.bind("filter",U(a.filter,"<af>")),g.bind("single",U(a.single,"<af?>")),g.bind("reduce",U(a.foldLeft,"<afj?:j>")),g.bind("sift",U(a.sift,"<o-f?:o>")),g.bind("keys",U(a.keys,"<x-:a<s>>")),g.bind("lookup",U(a.lookup,"<x-s:x>")),g.bind("append",U(a.append,"<xx:a>")),g.bind("exists",U(a.exists,"<x:b>")),g.bind("spread",U(a.spread,"<x-:a<o>>")),g.bind("merge",U(a.merge,"<a<o>:o>")),g.bind("reverse",U(a.reverse,"<a:a>")),g.bind("each",U(a.each,"<o-f:a>")),g.bind("error",U(a.error,"<s?:x>")),g.bind("assert",U(a.assert,"<bs?:x>")),g.bind("type",U(a.type,"<x:s>")),g.bind("sort",U(a.sort,"<af?:a>")),g.bind("shuffle",U(a.shuffle,"<a:a>")),g.bind("distinct",U(a.distinct,"<x:x>")),g.bind("base64encode",U(a.base64encode,"<s-:s>")),g.bind("base64decode",U(a.base64decode,"<s-:s>")),g.bind("encodeUrlComponent",U(a.encodeUrlComponent,"<s-:s>")),g.bind("encodeUrl",U(a.encodeUrl,"<s-:s>")),g.bind("decodeUrlComponent",U(a.decodeUrlComponent,"<s-:s>")),g.bind("decodeUrl",U(a.decodeUrl,"<s-:s>")),g.bind("eval",U(async function(e,t){if(void 0!==e){var r=this.input;void 0!==t&&(r=t,Array.isArray(r)&&!c(r)&&((r=u(r)).outerWrapper=!0));try{var n=o(e,!1)}catch(e){throw I(e),{stack:(new Error).stack,code:"D3120",value:e.message,error:e}}try{var a=await m(n,r,this.environment)}catch(e){throw I(e),{stack:(new Error).stack,code:"D3121",value:e.message,error:e}}return a}},"<sx?:x>")),g.bind("toMillis",U(n.toMillis,"<s-s?:n>")),g.bind("fromMillis",U(n.fromMillis,"<n-s?s?:s>")),g.bind("clone",U(function(e){if(void 0!==e)return JSON.parse(a.string(e))},"<(oa)-:o>"));var N={S0101:"String literal must be terminated by a matching quote",S0102:"Number out of range: {{token}}",S0103:"Unsupported escape sequence: \\{{token}}",S0104:"The escape sequence \\u must be followed by 4 hex digits",S0105:"Quoted property name must be terminated with a backquote (`)",S0106:"Comment has no closing tag",S0201:"Syntax error: {{token}}",S0202:"Expected {{value}}, got {{token}}",S0203:"Expected {{value}} before end of expression",S0204:"Unknown operator: {{token}}",S0205:"Unexpected token: {{token}}",S0206:"Unknown expression type: {{token}}",S0207:"Unexpected end of expression",S0208:"Parameter {{value}} of function definition must be a variable name (start with $)",S0209:"A predicate cannot follow a grouping expression in a step",S0210:"Each step can only have one grouping expression",S0211:"The symbol {{token}} cannot be used as a unary operator",S0212:"The left side of := must be a variable name (start with $)",S0213:"The literal value {{value}} cannot be used as a step within a path expression",S0214:"The right side of {{token}} must be a variable name (start with $)",S0215:"A context variable binding must precede any predicates on a step",S0216:"A context variable binding must precede the 'order-by' clause on a step",S0217:"The object representing the 'parent' cannot be derived from this expression",S0301:"Empty regular expressions are not allowed",S0302:"No terminating / in regular expression",S0402:"Choice groups containing parameterized types are not supported",S0401:"Type parameters can only be applied to functions and arrays",S0500:"Attempted to evaluate an expression containing syntax error(s)",T0410:"Argument {{index}} of function {{token}} does not match function signature",T0411:"Context value is not a compatible type with argument {{index}} of function {{token}}",T0412:"Argument {{index}} of function {{token}} must be an array of {{type}}",D1001:"Number out of range: {{value}}",D1002:"Cannot negate a non-numeric value: {{value}}",T1003:"Key in object structure must evaluate to a string; got: {{value}}",D1004:"Regular expression matches zero length string",T1005:"Attempted to invoke a non-function. Did you mean ${{{token}}}?",T1006:"Attempted to invoke a non-function",T1007:"Attempted to partially apply a non-function. Did you mean ${{{token}}}?",T1008:"Attempted to partially apply a non-function",D1009:"Multiple key definitions evaluate to same key: {{value}}",D1010:"Attempted to access the Javascript object prototype",T1010:"The matcher function argument passed to function {{token}} does not return the correct object structure",T2001:"The left side of the {{token}} operator must evaluate to a number",T2002:"The right side of the {{token}} operator must evaluate to a number",T2003:"The left side of the range operator (..) must evaluate to an integer",T2004:"The right side of the range operator (..) must evaluate to an integer",D2005:"The left side of := must be a variable name (start with $)",T2006:"The right side of the function application operator ~> must be a function",T2007:"Type mismatch when comparing values {{value}} and {{value2}} in order-by clause",T2008:"The expressions within an order-by clause must evaluate to numeric or string values",T2009:"The values {{value}} and {{value2}} either side of operator {{token}} must be of the same data type",T2010:"The expressions either side of operator {{token}} must evaluate to numeric or string values",T2011:"The insert/update clause of the transform expression must evaluate to an object: {{value}}",T2012:"The delete clause of the transform expression must evaluate to a string or array of strings: {{value}}",T2013:"The transform expression clones the input object using the $clone() function.  This has been overridden in the current scope by a non-function.",D2014:"The size of the sequence allocated by the range operator (..) must not exceed 1e6.  Attempted to allocate {{value}}.",D3001:"Attempting to invoke string function on Infinity or NaN",D3010:"Second argument of replace function cannot be an empty string",D3011:"Fourth argument of replace function must evaluate to a positive number",D3012:"Attempted to replace a matched string with a non-string value",D3020:"Third argument of split function must evaluate to a positive number",D3030:"Unable to cast value to a number: {{value}}",D3040:"Third argument of match function must evaluate to a positive number",D3050:"The second argument of reduce function must be a function with at least two arguments",D3060:"The sqrt function cannot be applied to a negative number: {{value}}",D3061:"The power function has resulted in a value that cannot be represented as a JSON number: base={{value}}, exponent={{exp}}",D3070:"The single argument form of the sort function can only be applied to an array of strings or an array of numbers.  Use the second argument to specify a comparison function",D3080:"The picture string must only contain a maximum of two sub-pictures",D3081:"The sub-picture must not contain more than one instance of the 'decimal-separator' character",D3082:"The sub-picture must not contain more than one instance of the 'percent' character",D3083:"The sub-picture must not contain more than one instance of the 'per-mille' character",D3084:"The sub-picture must not contain both a 'percent' and a 'per-mille' character",D3085:"The mantissa part of a sub-picture must contain at least one character that is either an 'optional digit character' or a member of the 'decimal digit family'",D3086:"The sub-picture must not contain a passive character that is preceded by an active character and that is followed by another active character",D3087:"The sub-picture must not contain a 'grouping-separator' character that appears adjacent to a 'decimal-separator' character",D3088:"The sub-picture must not contain a 'grouping-separator' at the end of the integer part",D3089:"The sub-picture must not contain two adjacent instances of the 'grouping-separator' character",D3090:"The integer part of the sub-picture must not contain a member of the 'decimal digit family' that is followed by an instance of the 'optional digit character'",D3091:"The fractional part of the sub-picture must not contain an instance of the 'optional digit character' that is followed by a member of the 'decimal digit family'",D3092:"A sub-picture that contains a 'percent' or 'per-mille' character must not contain a character treated as an 'exponent-separator'",D3093:"The exponent part of the sub-picture must comprise only of one or more characters that are members of the 'decimal digit family'",D3100:"The radix of the formatBase function must be between 2 and 36.  It was given {{value}}",D3110:"The argument of the toMillis function must be an ISO 8601 formatted timestamp. Given {{value}}",D3120:"Syntax error in expression passed to function eval: {{value}}",D3121:"Dynamic error evaluating the expression passed to function eval: {{value}}",D3130:"Formatting or parsing an integer as a sequence starting with {{value}} is not supported by this implementation",D3131:"In a decimal digit pattern, all digits must be from the same decimal group",D3132:"Unknown component specifier {{value}} in date/time picture string",D3133:"The 'name' modifier can only be applied to months and days in the date/time picture string, not {{value}}",D3134:"The timezone integer format specifier cannot have more than four digits",D3135:"No matching closing bracket ']' in date/time picture string",D3136:"The date/time picture string is missing specifiers required to parse the timestamp",D3137:"{{{message}}}",D3138:"The $single() function expected exactly 1 matching result.  Instead it matched more.",D3139:"The $single() function expected exactly 1 matching result.  Instead it matched 0.",D3140:"Malformed URL passed to ${{{functionName}}}(): {{value}}",D3141:"{{{message}}}"};function I(e){var t=N[e.code];if(void 0!==t){var r=t.replace(/\{\{\{([^}]+)}}}/g,function(){return e[arguments[1]]});r=r.replace(/\{\{([^}]+)}}/g,function(){return JSON.stringify(e[arguments[1]])}),e.message=r}}function R(e,t){var r,a;try{r=o(e,t&&t.recover),a=r.errors,delete r.errors}catch(e){throw I(e),e}var i=F(g),s=new Date;return i.bind("now",U(function(e,t){return n.fromMillis(s.getTime(),e,t)},"<s?s?:s>")),i.bind("millis",U(function(){return s.getTime()},"<:n>")),t&&t.RegexEngine?R.RegexEngine=t.RegexEngine:R.RegexEngine=RegExp,{evaluate:async function(e,t,n){if(void 0!==a){var o={code:"S0500",position:0};throw I(o),o}var p,f;if(void 0!==t)for(var l in p=F(i),t)p.bind(l,t[l]);else p=i;p.bind("$",e),s=new Date,p.timestamp=s,Array.isArray(e)&&!c(e)&&((e=u(e)).outerWrapper=!0);try{return f=await m(r,e,p),"function"==typeof n&&n(null,f),f}catch(o){throw I(o),o}},assign:function(e,t){i.bind(e,t)},registerFunction:function(e,t,r){var n=U(t,r);i.bind(e,n)},ast:function(){return r},errors:function(){return a}}}return R.parser=o,R}();t.exports=u},{"./datetime":1,"./functions":2,"./parser":4,"./signature":5,"./utils":6}],4:[function(e,t,r){var n=e("./signature");const a=(()=>{"use strict";var e={".":75,"[":80,"]":0,"{":70,"}":0,"(":80,")":0,",":0,"@":80,"#":80,";":80,":":80,"?":20,"+":50,"-":50,"*":60,"/":60,"%":60,"|":20,"=":40,"<":40,">":40,"^":40,"**":60,"..":20,":=":10,"!=":40,"<=":40,">=":40,"~>":40,and:30,or:25,in:40,"&":50,"!":0,"~":0},t={'"':'"',"\\":"\\","/":"/",b:"\b",f:"\f",n:"\n",r:"\r",t:"\t"},r=function(r){var n=0,a=r.length,i=function(e,t){return{type:e,value:t,position:n}},o=function(s){if(n>=a)return null;for(var u=r.charAt(n);n<a&&" \t\n\r\v".indexOf(u)>-1;)n++,u=r.charAt(n);if("/"===u&&"*"===r.charAt(n+1)){var c=n;for(n+=2,u=r.charAt(n);"*"!==u||"/"!==r.charAt(n+1);)if(u=r.charAt(++n),n>=a)throw{code:"S0106",stack:(new Error).stack,position:c};return n+=2,u=r.charAt(n),o(s)}if(!0!==s&&"/"===u)return n++,i("regex",function(){for(var e,t,i=n,o=0,s=function(e){if("/"===r.charAt(e)&&0===o){for(var t=0;"\\"===r.charAt(e-(t+1));)t++;if(t%2==0)return!0}return!1};n<a;){var u=r.charAt(n);if(s(n)){if(""===(e=r.substring(i,n)))throw{code:"S0301",stack:(new Error).stack,position:n};for(n++,u=r.charAt(n),i=n;"i"===u||"m"===u;)n++,u=r.charAt(n);return t=r.substring(i,n)+"g",new RegExp(e,t)}"("!==u&&"["!==u&&"{"!==u||"\\"===r.charAt(n-1)||o++,")"!==u&&"]"!==u&&"}"!==u||"\\"===r.charAt(n-1)||o--,n++}throw{code:"S0302",stack:(new Error).stack,position:n}}());if("."===u&&"."===r.charAt(n+1))return n+=2,i("operator","..");if(":"===u&&"="===r.charAt(n+1))return n+=2,i("operator",":=");if("!"===u&&"="===r.charAt(n+1))return n+=2,i("operator","!=");if(">"===u&&"="===r.charAt(n+1))return n+=2,i("operator",">=");if("<"===u&&"="===r.charAt(n+1))return n+=2,i("operator","<=");if("*"===u&&"*"===r.charAt(n+1))return n+=2,i("operator","**");if("~"===u&&">"===r.charAt(n+1))return n+=2,i("operator","~>");if(Object.prototype.hasOwnProperty.call(e,u))return n++,i("operator",u);if('"'===u||"'"===u){var p=u;n++;for(var f="";n<a;){if("\\"===(u=r.charAt(n)))if(n++,u=r.charAt(n),Object.prototype.hasOwnProperty.call(t,u))f+=t[u];else{if("u"!==u)throw{code:"S0103",stack:(new Error).stack,position:n,token:u};var l=r.substr(n+1,4);if(!/^[0-9a-fA-F]+$/.test(l))throw{code:"S0104",stack:(new Error).stack,position:n};var h=parseInt(l,16);f+=String.fromCharCode(h),n+=4}else{if(u===p)return n++,i("string",f);f+=u}n++}throw{code:"S0101",stack:(new Error).stack,position:n}}var d,v=/^-?(0|([1-9][0-9]*))(\.[0-9]+)?([Ee][-+]?[0-9]+)?/.exec(r.substring(n));if(null!==v){var g=parseFloat(v[0]);if(!isNaN(g)&&isFinite(g))return n+=v[0].length,i("number",g);throw{code:"S0102",stack:(new Error).stack,position:n,token:v[0]}}if("`"===u){n++;var m=r.indexOf("`",n);if(-1!==m)return d=r.substring(n,m),n=m+1,i("name",d);throw n=a,{code:"S0105",stack:(new Error).stack,position:n}}for(var y,b=n;;)if(y=r.charAt(b),b===a||" \t\n\r\v".indexOf(y)>-1||Object.prototype.hasOwnProperty.call(e,y)){if("$"===r.charAt(n))return d=r.substring(n+1,b),n=b,i("variable",d);switch(d=r.substring(n,b),n=b,d){case"or":case"in":case"and":return i("operator",d);case"true":return i("value",!0);case"false":return i("value",!1);case"null":return i("value",null);default:return n===a&&""===d?null:i("name",d)}}else b++};return o};return function(t,a){var i,o,s={},u=[],c=function(){var e=[];"(end)"!==i.id&&e.push({type:i.type,value:i.value,position:i.position});for(var t=o();null!==t;)e.push(t),t=o();return e},p={nud:function(){var e={code:"S0211",token:this.value,position:this.position};if(a)return e.remaining=c(),e.type="error",u.push(e),e;throw e.stack=(new Error).stack,e}},f=function(e,t){var r=s[e];return t=t||0,r?t>=r.lbp&&(r.lbp=t):((r=Object.create(p)).id=r.value=e,r.lbp=t,s[e]=r),r},l=function(e){if(a){e.remaining=c(),u.push(e);var t=s["(error)"];return(i=Object.create(t)).error=e,i.type="(error)",i}throw e.stack=(new Error).stack,e},h=function(e,r){if(e&&i.id!==e){var n={code:"(end)"===i.id?"S0203":"S0202",position:i.position,token:i.value,value:e};return l(n)}var a=o(r);if(null===a)return(i=s["(end)"]).position=t.length,i;var u,c=a.value,p=a.type;switch(p){case"name":case"variable":u=s["(name)"];break;case"operator":if(!(u=s[c]))return l({code:"S0204",stack:(new Error).stack,position:a.position,token:c});break;case"string":case"number":case"value":u=s["(literal)"];break;case"regex":p="regex",u=s["(regex)"];break;default:return l({code:"S0205",stack:(new Error).stack,position:a.position,token:c})}return(i=Object.create(u)).value=c,i.type=p,i.position=a.position,i},d=function(e){var t,r=i;for(h(null,!0),t=r.nud();e<i.lbp;)r=i,h(),t=r.led(t);return t},v=function(e){f(e,0).nud=function(){return this}},g=function(t,r,n){var a=r||e[t],i=f(t,a);return i.led=n||function(e){return this.lhs=e,this.rhs=d(a),this.type="binary",this},i},m=function(e,t,r){var n=f(e,t);return n.led=r,n},y=function(e,t){var r=f(e);return r.nud=t||function(){return this.expression=d(70),this.type="unary",this},r};v("(end)"),v("(name)"),v("(literal)"),v("(regex)"),f(":"),f(";"),f(","),f(")"),f("]"),f("}"),f(".."),g("."),g("+"),g("-"),g("*"),g("/"),g("%"),g("="),g("<"),g(">"),g("!="),g("<="),g(">="),g("&"),g("and"),g("or"),g("in"),v("and"),v("or"),v("in"),y("-"),g("~>"),m("(error)",10,function(e){return this.lhs=e,this.error=i.error,this.remaining=c(),this.type="error",this}),y("*",function(){return this.type="wildcard",this}),y("**",function(){return this.type="descendant",this}),y("%",function(){return this.type="parent",this}),g("(",e["("],function(e){if(this.procedure=e,this.type="function",this.arguments=[],")"!==i.id)for(;"operator"===i.type&&"?"===i.id?(this.type="partial",this.arguments.push(i),h("?")):this.arguments.push(d(0)),","===i.id;)h(",");if(h(")",!0),"name"===e.type&&("function"===e.value||"λ"===e.value)){if(this.arguments.forEach(function(e,t){if("variable"!==e.type)return l({code:"S0208",stack:(new Error).stack,position:e.position,token:e.value,value:t+1})}),this.type="lambda","<"===i.id){for(var t=i.position,r=1,a="<";r>0&&"{"!==i.id&&"(end)"!==i.id;){var o=h();">"===o.id?r--:"<"===o.id&&r++,a+=o.value}h(">");try{this.signature=n(a)}catch(e){return e.position=t+e.offset,l(e)}}h("{"),this.body=d(0),h("}")}return this}),y("(",function(){for(var e=[];")"!==i.id&&(e.push(d(0)),";"===i.id);)h(";");return h(")",!0),this.type="block",this.expressions=e,this}),y("[",function(){var e=[];if("]"!==i.id)for(;;){var t=d(0);if(".."===i.id){var r={type:"binary",value:"..",position:i.position,lhs:t};h(".."),r.rhs=d(0),t=r}if(e.push(t),","!==i.id)break;h(",")}return h("]",!0),this.expressions=e,this.type="unary",this}),g("[",e["["],function(t){if("]"===i.id){for(var r=t;r&&"binary"===r.type&&"["===r.value;)r=r.lhs;return r.keepArray=!0,h("]"),t}return this.lhs=t,this.rhs=d(e["]"]),this.type="binary",h("]",!0),this}),g("^",e["^"],function(e){h("(");for(var t=[];;){var r={descending:!1};if("<"===i.id?h("<"):">"===i.id&&(r.descending=!0,h(">")),r.expression=d(0),t.push(r),","!==i.id)break;h(",")}return h(")"),this.lhs=e,this.rhs=t,this.type="binary",this});var b=function(e){var t=[];if("}"!==i.id)for(;;){var r=d(0);h(":");var n=d(0);if(t.push([r,n]),","!==i.id)break;h(",")}return h("}",!0),void 0===e?(this.lhs=t,this.type="unary"):(this.lhs=e,this.rhs=t,this.type="binary"),this};y("{",b),g("{",e["{"],b),m(":=",e[":="],function(t){return"variable"!==t.type?l({code:"S0212",stack:(new Error).stack,position:t.position,token:t.value}):(this.lhs=t,this.rhs=d(e[":="]-1),this.type="binary",this)}),g("@",e["@"],function(t){return this.lhs=t,this.rhs=d(e["@"]),"variable"!==this.rhs.type?l({code:"S0214",stack:(new Error).stack,position:this.rhs.position,token:"@"}):(this.type="binary",this)}),g("#",e["#"],function(t){return this.lhs=t,this.rhs=d(e["#"]),"variable"!==this.rhs.type?l({code:"S0214",stack:(new Error).stack,position:this.rhs.position,token:"#"}):(this.type="binary",this)}),g("?",e["?"],function(e){return this.type="condition",this.condition=e,this.then=d(0),":"===i.id&&(h(":"),this.else=d(0)),this}),y("|",function(){return this.type="transform",this.pattern=d(0),h("|"),this.update=d(0),","===i.id&&(h(","),this.delete=d(0)),h("|"),this});var w=function(e){var t;if("function"!==e.type||e.predicate)if("condition"===e.type)e.then=w(e.then),void 0!==e.else&&(e.else=w(e.else)),t=e;else if("block"===e.type){var r=e.expressions.length;r>0&&(e.expressions[r-1]=w(e.expressions[r-1])),t=e}else t=e;else{var n={type:"lambda",thunk:!0,arguments:[],position:e.position};n.body=e,t=n}return t},k=0,x=0,A=[],E=function(e,t){switch(e.type){case"name":case"wildcard":t.level--,0===t.level&&(void 0===e.ancestor?e.ancestor=t:(A[t.index].slot.label=e.ancestor.label,e.ancestor=t),e.tuple=!0);break;case"parent":t.level++;break;case"block":e.expressions.length>0&&(e.tuple=!0,t=E(e.expressions[e.expressions.length-1],t));break;case"path":e.tuple=!0;var r=e.steps.length-1;for(t=E(e.steps[r--],t);t.level>0&&r>=0;)t=E(e.steps[r--],t);break;default:throw{code:"S0217",token:e.type,position:e.position}}return t},D=function(e,t){if(void 0!==t.seekingParent||"parent"===t.type){var r=void 0!==t.seekingParent?t.seekingParent:[];"parent"===t.type&&r.push(t.slot),void 0===e.seekingParent?e.seekingParent=r:Array.prototype.push.apply(e.seekingParent,r)}},T=function(e){var t=e.steps.length-1,r=e.steps[t],n=void 0!==r.seekingParent?r.seekingParent:[];"parent"===r.type&&n.push(r.slot);for(var a=0;a<n.length;a++){var i=n[a];for(t=e.steps.length-2;i.level>0;){if(t<0){void 0===e.seekingParent?e.seekingParent=[i]:e.seekingParent.push(i);break}for(var o=e.steps[t--];t>=0&&o.focus&&e.steps[t].focus;)o=e.steps[t--];i=E(o,i)}}},S=function(e){var t;switch(e.type){case"binary":switch(e.value){case".":var r=S(e.lhs);t="path"===r.type?r:{type:"path",steps:[r]},"parent"===r.type&&(t.seekingParent=[r.slot]);var n=S(e.rhs);"function"===n.type&&"path"===n.procedure.type&&1===n.procedure.steps.length&&"name"===n.procedure.steps[0].type&&"function"===t.steps[t.steps.length-1].type&&(t.steps[t.steps.length-1].nextFunction=n.procedure.steps[0].value),"path"===n.type?Array.prototype.push.apply(t.steps,n.steps):(void 0!==n.predicate&&(n.stages=n.predicate,delete n.predicate),t.steps.push(n)),t.steps.filter(function(e){if("number"===e.type||"value"===e.type)throw{code:"S0213",stack:(new Error).stack,position:e.position,value:e.value};return"string"===e.type}).forEach(function(e){e.type="name"}),t.steps.filter(function(e){return!0===e.keepArray}).length>0&&(t.keepSingletonArray=!0);var i=t.steps[0];"unary"===i.type&&"["===i.value&&(i.consarray=!0);var o=t.steps[t.steps.length-1];"unary"===o.type&&"["===o.value&&(o.consarray=!0),T(t);break;case"[":var s=t=S(e.lhs),c="predicate";if("path"===t.type&&(s=t.steps[t.steps.length-1],c="stages"),void 0!==s.group)throw{code:"S0209",stack:(new Error).stack,position:e.position};void 0===s[c]&&(s[c]=[]);var p=S(e.rhs);void 0!==p.seekingParent&&(p.seekingParent.forEach(e=>{1===e.level?E(s,e):e.level--}),D(s,p)),s[c].push({type:"filter",expr:p,position:e.position});break;case"{":if(void 0!==(t=S(e.lhs)).group)throw{code:"S0210",stack:(new Error).stack,position:e.position};t.group={lhs:e.rhs.map(function(e){return[S(e[0]),S(e[1])]}),position:e.position};break;case"^":"path"!==(t=S(e.lhs)).type&&(t={type:"path",steps:[t]});var f={type:"sort",position:e.position};f.terms=e.rhs.map(function(e){var t=S(e.expression);return D(f,t),{descending:e.descending,expression:t}}),t.steps.push(f),T(t);break;case":=":(t={type:"bind",value:e.value,position:e.position}).lhs=S(e.lhs),t.rhs=S(e.rhs),D(t,t.rhs);break;case"@":if(t=S(e.lhs),s=t,"path"===t.type&&(s=t.steps[t.steps.length-1]),void 0!==s.stages||void 0!==s.predicate)throw{code:"S0215",stack:(new Error).stack,position:e.position};if("sort"===s.type)throw{code:"S0216",stack:(new Error).stack,position:e.position};e.keepArray&&(s.keepArray=!0),s.focus=e.rhs.value,s.tuple=!0;break;case"#":t=S(e.lhs),s=t,"path"===t.type?s=t.steps[t.steps.length-1]:(t={type:"path",steps:[t]},void 0!==s.predicate&&(s.stages=s.predicate,delete s.predicate)),void 0===s.stages?s.index=e.rhs.value:s.stages.push({type:"index",value:e.rhs.value,position:e.position}),s.tuple=!0;break;case"~>":(t={type:"apply",value:e.value,position:e.position}).lhs=S(e.lhs),t.rhs=S(e.rhs);break;default:(t={type:e.type,value:e.value,position:e.position}).lhs=S(e.lhs),t.rhs=S(e.rhs),D(t,t.lhs),D(t,t.rhs)}break;case"unary":t={type:e.type,value:e.value,position:e.position},"["===e.value?t.expressions=e.expressions.map(function(e){var r=S(e);return D(t,r),r}):"{"===e.value?t.lhs=e.lhs.map(function(e){var r=S(e[0]);D(t,r);var n=S(e[1]);return D(t,n),[r,n]}):(t.expression=S(e.expression),"-"===e.value&&"number"===t.expression.type?(t=t.expression).value=-t.value:D(t,t.expression));break;case"function":case"partial":(t={type:e.type,name:e.name,value:e.value,position:e.position}).arguments=e.arguments.map(function(e){var r=S(e);return D(t,r),r}),t.procedure=S(e.procedure);break;case"lambda":t={type:e.type,arguments:e.arguments,signature:e.signature,position:e.position};var l=S(e.body);t.body=w(l);break;case"condition":(t={type:e.type,position:e.position}).condition=S(e.condition),D(t,t.condition),t.then=S(e.then),D(t,t.then),void 0!==e.else&&(t.else=S(e.else),D(t,t.else));break;case"transform":(t={type:e.type,position:e.position}).pattern=S(e.pattern),t.update=S(e.update),void 0!==e.delete&&(t.delete=S(e.delete));break;case"block":(t={type:e.type,position:e.position}).expressions=e.expressions.map(function(e){var r=S(e);return D(t,r),(r.consarray||"path"===r.type&&r.steps[0].consarray)&&(t.consarray=!0),r});break;case"name":t={type:"path",steps:[e]},e.keepArray&&(t.keepSingletonArray=!0);break;case"parent":t={type:"parent",slot:{label:"!"+k++,level:1,index:x++}},A.push(t);break;case"string":case"number":case"value":case"wildcard":case"descendant":case"variable":case"regex":t=e;break;case"operator":if("and"===e.value||"or"===e.value||"in"===e.value)e.type="name",t=S(e);else{if("?"!==e.value)throw{code:"S0201",stack:(new Error).stack,position:e.position,token:e.value};t=e}break;case"error":t=e,e.lhs&&(t=S(e.lhs));break;default:var h="S0206";"(end)"===e.id&&(h="S0207");var d={code:h,position:e.position,token:e.value};if(a)return u.push(d),{type:"error",error:d};throw d.stack=(new Error).stack,d}return e.keepArray&&(t.keepArray=!0),t};o=r(t),h();var O=d(0);if("(end)"!==i.id){var P={code:"S0201",position:i.position,token:i.value};l(P)}if("parent"===(O=S(O)).type||void 0!==O.seekingParent)throw{code:"S0217",token:O.type,position:O.position};return u.length>0&&(O.errors=u),O}})();t.exports=a},{"./signature":5}],5:[function(e,t,r){var n=e("./utils");const a=(()=>{"use strict";var e={a:"arrays",b:"booleans",f:"functions",n:"numbers",o:"objects",s:"strings"};return function(t){for(var r=1,a=[],i={},o=i;r<t.length;){var s=t.charAt(r);if(":"===s)break;var u=function(){a.push(i),o=i,i={}},c=function(e,t,r,n){for(var a=1,i=t;i<e.length;)if(i++,(s=e.charAt(i))===n){if(0==--a)break}else s===r&&a++;return i};switch(s){case"s":case"n":case"b":case"l":case"o":i.regex="["+s+"m]",i.type=s,u();break;case"a":i.regex="[asnblfom]",i.type=s,i.array=!0,u();break;case"f":i.regex="f",i.type=s,u();break;case"j":i.regex="[asnblom]",i.type=s,u();break;case"x":i.regex="[asnblfom]",i.type=s,u();break;case"-":o.context=!0,o.contextRegex=new RegExp(o.regex),o.regex+="?";break;case"?":case"+":o.regex+=s;break;case"(":var p=c(t,r,"(",")"),f=t.substring(r+1,p);if(-1!==f.indexOf("<"))throw{code:"S0402",stack:(new Error).stack,value:f,offset:r};i.regex="["+f+"m]",i.type="("+f+")",r=p,u();break;case"<":if("a"!==o.type&&"f"!==o.type)throw{code:"S0401",stack:(new Error).stack,value:o.type,offset:r};var l=c(t,r,"<",">");o.subtype=t.substring(r+1,l),r=l}r++}var h="^"+a.map(function(e){return"("+e.regex+")"}).join("")+"$",d=new RegExp(h),v=function(e){var t;if(n.isFunction(e))t="f";else switch(typeof e){case"string":t="s";break;case"number":t="n";break;case"boolean":t="b";break;case"object":t=null===e?"l":Array.isArray(e)?"a":"o";break;case"undefined":default:t="m"}return t};return{definition:t,validate:function(t,r){var n="";t.forEach(function(e){n+=v(e)});var i=d.exec(n);if(i){var o=[],s=0;return a.forEach(function(n,a){var u=t[s],c=i[a+1];if(""===c)if(n.context&&n.contextRegex){var p=v(r);if(!n.contextRegex.test(p))throw{code:"T0411",stack:(new Error).stack,value:r,index:s+1};o.push(r)}else o.push(u),s++;else c.split("").forEach(function(r){if("a"===n.type){if("m"===r)u=void 0;else{u=t[s];var a=!0;if(void 0!==n.subtype)if("a"!==r&&c!==n.subtype)a=!1;else if("a"===r&&u.length>0){var i=v(u[0]);a=i===n.subtype.charAt(0)&&0===u.filter(function(e){return v(e)!==i}).length}if(!a)throw{code:"T0412",stack:(new Error).stack,value:u,index:s+1,type:e[n.subtype]};"a"!==r&&(u=[u])}o.push(u),s++}else o.push(u),s++})}),o}!function(e,t){for(var r="^",n=0,i=0;i<a.length;i++){r+=a[i].regex;var o=t.match(r);if(null===o)throw{code:"T0410",stack:(new Error).stack,value:e[n],index:n+1};n=o[0].length}throw{code:"T0410",stack:(new Error).stack,value:e[n],index:n+1}}(t,n)}}}})();t.exports=a},{"./utils":6}],6:[function(e,t,r){const n=(()=>{"use strict";function e(e){var t=!1;if("number"==typeof e&&(t=!isNaN(e))&&!isFinite(e))throw{code:"D1001",value:e,stack:(new Error).stack};return t}var t=("function"==typeof Symbol?Symbol:{}).iterator||"@@iterator";return{isNumeric:e,isArrayOfStrings:function(e){var t=!1;return Array.isArray(e)&&(t=0===e.filter(function(e){return"string"!=typeof e}).length),t},isArrayOfNumbers:function(t){var r=!1;return Array.isArray(t)&&(r=0===t.filter(function(t){return!e(t)}).length),r},createSequence:function(){var e=[];return e.sequence=!0,1===arguments.length&&e.push(arguments[0]),e},isSequence:function(e){return!0===e.sequence&&Array.isArray(e)},isFunction:function(e){return e&&(!0===e._jsonata_function||!0===e._jsonata_lambda)||"function"==typeof e},isLambda:function(e){return e&&!0===e._jsonata_lambda},isIterable:function(e){return"object"==typeof e&&null!==e&&t in e&&"next"in e&&"function"==typeof e.next},getFunctionArity:function(e){return"number"==typeof e.arity?e.arity:"function"==typeof e.implementation?e.implementation.length:"number"==typeof e.length?e.length:e.arguments.length},isDeepEqual:function e(t,r){if(t===r)return!0;if("object"==typeof t&&"object"==typeof r&&null!==t&&null!==r){if(Array.isArray(t)&&Array.isArray(r)){if(t.length!==r.length)return!1;for(var n=0;n<t.length;n++)if(!e(t[n],r[n]))return!1;return!0}var a=Object.getOwnPropertyNames(t),i=Object.getOwnPropertyNames(r);if(a.length!==i.length)return!1;for(a=a.sort(),i=i.sort(),n=0;n<a.length;n++)if(a[n]!==i[n])return!1;for(n=0;n<a.length;n++){var o=a[n];if(!e(t[o],r[o]))return!1}return!0}return!1},stringToArray:function(e){var t=[];for(let r of e)t.push(r);return t},isPromise:function(e){return"object"==typeof e&&null!==e&&"then"in e&&"function"==typeof e.then}}})();t.exports=n},{}]},{},[3])(3)});
+window.dispatchEvent(new Event('jsonata-ready'));
+</script>
+
+<script>
+// =============================================================
+//  Problems
+// =============================================================
+const PROBLEMS = [
+  // ============ Lv.1 アクセス基礎 ============
+  {
+    id: 1, level: 1, category: 'アクセス基礎',
+    title: 'フィールドへアクセスする',
+    desc: '注文情報の入力から <code>orderId</code> の値だけを取り出してください。Step Functions のステートでは、入力データは <code>$states.input</code> にバインドされます。',
+    input: { orderId: 'ORD-12345', customer: 'Alice' },
+    expected: 'ORD-12345',
+    hint: '<code>$states.input</code> に続けて、ドット記法でフィールド名を指定します。',
+    solution: '$states.input.orderId',
+    explanation: 'JSONata の基本はドット記法によるパス参照です。Step Functions では、Pass・Task などのステートで <code>QueryLanguage: "JSONata"</code> を指定すると、入力が <code>$states.input</code> として利用可能になります。'
+  },
+  {
+    id: 2, level: 1, category: 'アクセス基礎',
+    title: 'ネストしたフィールド',
+    desc: 'ユーザー情報のネストした構造から、メールアドレスだけを抽出してください。',
+    input: { user: { id: 'U-100', profile: { name: 'Alice', email: 'alice@example.com' } } },
+    expected: 'alice@example.com',
+    hint: 'ドットをつなげていけば、いくらでも深く潜れます。',
+    solution: '$states.input.user.profile.email',
+    explanation: 'JSONata はネストの深さに関係なくドット記法で参照できます。JSONPath の <code>$.user.profile.email</code> とほぼ同じ感覚で書けます。'
+  },
+  {
+    id: 3, level: 1, category: 'アクセス基礎',
+    title: '配列の要素を取り出す',
+    desc: '商品リストの<strong>最初の</strong>商品名を取り出してください。',
+    input: { items: [{ name: 'apple', price: 100 }, { name: 'banana', price: 50 }, { name: 'cherry', price: 200 }] },
+    expected: 'apple',
+    hint: '配列インデックスは <code>[0]</code> で指定できます（0始まり）。',
+    solution: '$states.input.items[0].name',
+    explanation: 'JSONata の配列インデックスは 0 始まりです。負のインデックス（<code>[-1]</code> で末尾）も使えます。'
+  },
+  {
+    id: 4, level: 1, category: 'アクセス基礎',
+    title: '配列の全要素を射影',
+    desc: '商品リストから、<strong>全商品の名前</strong>を配列として取り出してください。',
+    input: { items: [{ name: 'apple', price: 100 }, { name: 'banana', price: 50 }, { name: 'cherry', price: 200 }] },
+    expected: ['apple', 'banana', 'cherry'],
+    hint: '配列に対してドットでフィールド指定すると、自動的に全要素にマップされます。',
+    solution: '$states.input.items.name',
+    explanation: 'これが JSONata の強力なところで、配列に対してドットを使うと自動的に全要素から値を集めます。JSONPath で <code>items[*].name</code> と書くのと同じ意味です。'
+  },
+  {
+    id: 5, level: 1, category: 'アクセス基礎',
+    title: '配列を条件で絞る',
+    desc: '注文リストから、ステータスが <code>"paid"</code> の注文だけを抽出してください。',
+    input: { orders: [
+      { id: 1, status: 'paid', total: 1000 },
+      { id: 2, status: 'pending', total: 500 },
+      { id: 3, status: 'paid', total: 2000 },
+      { id: 4, status: 'cancelled', total: 800 }
+    ]},
+    expected: [
+      { id: 1, status: 'paid', total: 1000 },
+      { id: 3, status: 'paid', total: 2000 }
+    ],
+    hint: '配列に対して <code>[条件式]</code> でフィルタできます。<code>[status="paid"]</code> のように書きます。',
+    solution: '$states.input.orders[status="paid"]',
+    explanation: 'JSONata のフィルタは <code>[式]</code> で記述します。等値比較は SQL と同じく <code>=</code> 1つ（<code>==</code> ではない）です。'
+  },
+
+  // ============ Lv.2 変換 ============
+  {
+    id: 6, level: 2, category: '変換',
+    title: '文字列を連結する',
+    desc: 'ユーザーの姓名を結合して、<code>"姓 名"</code> という形式のフルネーム文字列を返してください。',
+    input: { lastName: '山田', firstName: '太郎' },
+    expected: '山田 太郎',
+    hint: '文字列連結は <code>&</code> 演算子です（JavaScript の <code>+</code> ではない）。',
+    solution: '$states.input.lastName & " " & $states.input.firstName',
+    explanation: 'JSONata では文字列連結に <code>&</code> を使います。<code>+</code> は数値の加算専用です。'
+  },
+  {
+    id: 7, level: 2, category: '変換',
+    title: 'オブジェクトを組み立てる',
+    desc: '入力から、<code>{ "name": フルネーム, "isAdult": 20以上か }</code> の形のオブジェクトを返してください。',
+    input: { lastName: '佐藤', firstName: '花子', age: 28 },
+    expected: { name: '佐藤 花子', isAdult: true },
+    hint: '<code>{ "キー": 値式, ... }</code> で新しいオブジェクトを作れます。',
+    solution: '{ "name": $states.input.lastName & " " & $states.input.firstName, "isAdult": $states.input.age >= 20 }',
+    explanation: '中括弧 <code>{ ... }</code> で任意の構造のオブジェクトを構築できます。Step Functions で次のステートに渡すペイロードを整形するときの主役パターンです。'
+  },
+  {
+    id: 8, level: 2, category: '変換',
+    title: '配列をマップ変換',
+    desc: '商品リストから <code>[{ "product": 商品名, "subtotal": 数量×単価 }]</code> の配列を作ってください。',
+    input: { items: [
+      { product: 'A', qty: 2, price: 100 },
+      { product: 'B', qty: 3, price: 50 },
+      { product: 'C', qty: 1, price: 200 }
+    ]},
+    expected: [
+      { product: 'A', subtotal: 200 },
+      { product: 'B', subtotal: 150 },
+      { product: 'C', subtotal: 200 }
+    ],
+    hint: '配列に <code>.{ ... }</code> をつなげると、各要素のコンテキストでオブジェクトを構築できます。',
+    solution: '$states.input.items.{ "product": product, "subtotal": qty * price }',
+    explanation: 'これが JSONata の真骨頂です。<code>items.{...}</code> の中では、各要素のフィールド（<code>product</code>, <code>qty</code> など）を直接参照できます。Lambda を呼ばずに済む場面が一気に増えます。'
+  },
+  {
+    id: 9, level: 2, category: '変換',
+    title: '条件分岐',
+    desc: 'スコアが <code>threshold</code> 以上なら <code>"pass"</code>、未満なら <code>"fail"</code> を返してください。',
+    input: { score: 75, threshold: 60 },
+    expected: 'pass',
+    hint: '三項演算子 <code>条件 ? 真 : 偽</code> が使えます。',
+    solution: '$states.input.score >= $states.input.threshold ? "pass" : "fail"',
+    explanation: 'JSONata の条件式は JavaScript と同じ三項演算子です。Choice ステートを増やさず、ワークフロー内で分岐結果を計算できます。'
+  },
+  {
+    id: 10, level: 2, category: '変換',
+    title: '文字列を正規化',
+    desc: 'メールアドレスを小文字に変換してください。',
+    input: { email: 'Alice@Example.COM' },
+    expected: 'alice@example.com',
+    hint: '組み込み関数 <code>$lowercase()</code> を使います。',
+    solution: '$lowercase($states.input.email)',
+    explanation: '文字列操作の組み込み関数: <code>$lowercase</code>, <code>$uppercase</code>, <code>$trim</code>, <code>$substring</code>, <code>$contains</code>, <code>$replace</code> など。',
+  },
+
+  // ============ Lv.3 集計・並べ替え ============
+  {
+    id: 11, level: 3, category: '集計・並べ替え',
+    title: '合計を求める',
+    desc: '価格配列の合計を計算してください。',
+    input: { prices: [100, 250, 300, 50, 800] },
+    expected: 1500,
+    hint: '<code>$sum()</code> 関数を使います。',
+    solution: '$sum($states.input.prices)',
+    explanation: '集計関数: <code>$sum</code>, <code>$average</code>, <code>$max</code>, <code>$min</code>, <code>$count</code>。引数は数値配列です。'
+  },
+  {
+    id: 12, level: 3, category: '集計・並べ替え',
+    title: 'フィルタしてから合計',
+    desc: 'category が <code>"food"</code> の商品だけ、価格の合計を求めてください。',
+    input: { items: [
+      { category: 'food', price: 300 },
+      { category: 'tech', price: 1000 },
+      { category: 'food', price: 200 },
+      { category: 'tech', price: 500 },
+      { category: 'food', price: 150 }
+    ]},
+    expected: 650,
+    hint: 'フィルタ → 射影 → 集計 を一行で書きます。',
+    solution: '$sum($states.input.items[category="food"].price)',
+    explanation: 'JSONata の式は左から右へ「絞る → 取り出す → 計算する」と読めます。SQL の <code>SUM(price) WHERE category = \'food\'</code> に対応します。'
+  },
+  {
+    id: 13, level: 3, category: '集計・並べ替え',
+    title: '件数をカウント',
+    desc: 'ステータスが <code>"paid"</code> の注文件数を返してください。',
+    input: { orders: [
+      { status: 'paid' }, { status: 'pending' }, { status: 'paid' },
+      { status: 'cancelled' }, { status: 'paid' }
+    ]},
+    expected: 3,
+    hint: 'フィルタ結果に <code>$count()</code> を適用します。',
+    solution: '$count($states.input.orders[status="paid"])',
+    explanation: '<code>$count()</code> は配列の長さを返します。フィルタが 0 件のときに <code>undefined</code> ではなく <code>0</code> を返すので、Choice ステートの条件に使いやすい関数です。'
+  },
+  {
+    id: 14, level: 3, category: '集計・並べ替え',
+    title: '並べ替えて取り出す',
+    desc: 'ユーザー一覧を <strong>age 昇順</strong>で並べ替え、name だけの配列を返してください。',
+    input: { users: [
+      { name: 'Charlie', age: 30 },
+      { name: 'Alice', age: 25 },
+      { name: 'Bob', age: 28 }
+    ]},
+    expected: ['Alice', 'Bob', 'Charlie'],
+    hint: 'JSONata のソートは <code>^(キー)</code> という独特な構文です。降順は <code>^(>キー)</code>。',
+    solution: '($states.input.users^(age)).name',
+    explanation: 'ソートはハット記号 <code>^()</code> で表現します。<code>^(field)</code> で昇順、<code>^(>field)</code> で降順、複数キーは <code>^(a, >b)</code>。ソート結果からさらに射影するときは <code>()</code> で括ると読みやすくなります。'
+  },
+  {
+    id: 15, level: 3, category: '集計・並べ替え',
+    title: '重複除去 + 文字列結合',
+    desc: 'タグ配列から重複を除き、カンマ区切りの文字列にしてください。',
+    input: { tags: ['aws', 'lambda', 'aws', 's3', 'lambda', 'dynamodb'] },
+    expected: 'aws,lambda,s3,dynamodb',
+    hint: '<code>$distinct()</code> で重複除去、<code>$join(配列, 区切り)</code> で結合します。',
+    solution: '$join($distinct($states.input.tags), ",")',
+    explanation: '関数を組み合わせるパイプライン的な書き方も自然にできます。<code>$distinct</code> は出現順を保ち、<code>$join</code> は第二引数の区切り文字で結合します。'
+  },
+
+  // ============ Lv.4 関数を使いこなす ============
+  {
+    id: 16, level: 4, category: '関数を使いこなす',
+    title: 'ミリ秒を ISO 日時に',
+    desc: 'Unix ミリ秒タイムスタンプを ISO 8601 形式の文字列に変換してください。',
+    input: { timestamp: 1700000000000 },
+    expected: '2023-11-14T22:13:20.000Z',
+    hint: '<code>$fromMillis()</code> 関数を使います。',
+    solution: '$fromMillis($states.input.timestamp)',
+    explanation: 'これまで Pass ステートや Lambda で組み立てる必要があった日時変換が一行で済みます。フォーマット指定: <code>$fromMillis(ts, "[Y0001]-[M01]-[D01]")</code>。'
+  },
+  {
+    id: 17, level: 4, category: '関数を使いこなす',
+    title: '平均を計算',
+    desc: 'テストスコアの平均値を返してください。',
+    input: { scores: [80, 92, 75, 88, 95] },
+    expected: 86,
+    hint: '<code>$average()</code> 関数があります。',
+    solution: '$average($states.input.scores)',
+    explanation: '<code>$average</code> は数値の平均を返します。整数結果のときは整数、小数のときは小数で返ります。'
+  },
+  {
+    id: 18, level: 4, category: '関数を使いこなす',
+    title: 'オブジェクトをマージ',
+    desc: 'デフォルト設定にオーバーライドを重ねたマージ結果を返してください（オーバーライド優先）。',
+    input: {
+      defaults: { timeout: 30, retries: 3, region: 'us-east-1' },
+      overrides: { timeout: 60, region: 'ap-northeast-1' }
+    },
+    expected: { timeout: 60, retries: 3, region: 'ap-northeast-1' },
+    hint: '<code>$merge([obj1, obj2, ...])</code> で配列内のオブジェクトを順にマージします。後勝ち。',
+    solution: '$merge([$states.input.defaults, $states.input.overrides])',
+    explanation: '<code>$merge</code> は配列を受け取り、後にあるオブジェクトのキーが先のキーを上書きします。Parallel ステートの結果集約でも頻出。'
+  },
+  {
+    id: 19, level: 4, category: '関数を使いこなす',
+    title: 'キー一覧を取得',
+    desc: '設定オブジェクトの全キー名を配列として返してください。',
+    input: { config: { region: 'ap-northeast-1', timeout: 30, memory: 512, retries: 3 } },
+    expected: ['region', 'timeout', 'memory', 'retries'],
+    hint: '<code>$keys()</code> 関数があります。',
+    solution: '$keys($states.input.config)',
+    explanation: 'オブジェクト操作の関数: <code>$keys</code> でキー一覧、<code>$lookup</code> で動的なキー参照、<code>$each</code> で各エントリへの関数適用、<code>$spread</code> でキー・値のペアの配列化。'
+  },
+  {
+    id: 20, level: 4, category: '関数を使いこなす',
+    title: '存在チェックとデフォルト値',
+    desc: 'ユーザーに <code>email</code> があればそれを、なければ <code>"no-email"</code> を返してください。',
+    input: { user: { id: 'U-100', name: 'Alice' } },
+    expected: 'no-email',
+    hint: '<code>$exists(パス)</code> でフィールドの存在を判定できます。',
+    solution: '$exists($states.input.user.email) ? $states.input.user.email : "no-email"',
+    explanation: '注意点: JSONata 2.1.0 で追加された <code>??</code>（null合体）や <code>?:</code>（Elvis）演算子は Step Functions の JSONata エンジンではサポートされていません。古典的な <code>$exists()</code> + 三項演算子の組み合わせが現状の正解です。'
+  },
+
+  // ============ Lv.5 Step Functions 実践 ============
+  {
+    id: 21, level: 5, category: 'Step Functions 実践',
+    title: 'Parallel の結果を統合',
+    desc: '直前の Parallel ステートで2つのブランチが並列実行され、結果が <code>$states.result</code> に配列で入っています。これを単一のオブジェクトにマージしてください。',
+    input: {},
+    bindings: {
+      result: [
+        { orderId: 'ORD-789', total: 1500 },
+        { customerId: 'C-100', customerName: 'Alice' }
+      ]
+    },
+    expected: { orderId: 'ORD-789', total: 1500, customerId: 'C-100', customerName: 'Alice' },
+    hint: '<code>$states.result</code> は配列です。<code>$merge</code> でまとめます。',
+    solution: '$merge($states.result)',
+    explanation: 'Parallel ステートの後段で <strong>最も頻出</strong>のパターンです。JSONPath 時代は <code>ResultSelector</code> や追加の Pass ステートで組み立てていた処理が、一行で済みます。',
+    notes: 'このステートでは <code>$states.result</code> が次の配列にバインドされています:'
+  },
+  {
+    id: 22, level: 5, category: 'Step Functions 実践',
+    title: 'JSON 文字列をパース',
+    desc: 'Lambda から返ってきたペイロードが JSON 文字列のまま入っています。これをパースして <code>userId</code> を取り出してください。',
+    input: { payload: '{"userId":42,"role":"admin","active":true}' },
+    expected: 42,
+    hint: 'Step Functions 固有の <code>$parse()</code> 関数を使います。',
+    solution: '$parse($states.input.payload).userId',
+    explanation: '<code>$parse()</code> は AWS が Step Functions 向けに追加した独自関数で、JSON 文字列をパースしてオブジェクトに変換します。標準 JSONata の <code>$eval()</code> はサポートされていないので、文字列化された JSON を扱うときはこれ一択。'
+  },
+  {
+    id: 23, level: 5, category: 'Step Functions 実践',
+    title: '変数（Variables）を参照',
+    desc: '直前のステートで Variables 機能により <code>$userId</code> という変数が <code>"user-42"</code> に設定されています。これと現在の入力を組み合わせて <code>{ "id": userId, "action": <input.action> }</code> を返してください。',
+    input: { action: 'login' },
+    bindings: { userId: 'user-42' },
+    expected: { id: 'user-42', action: 'login' },
+    hint: '変数は単に <code>$userId</code> のようにドル記号付きで参照できます。',
+    solution: '{ "id": $userId, "action": $states.input.action }',
+    explanation: 'Variables は 2024年11月に JSONata と同時に追加された機能で、ステートをまたいでデータを保持できます。<code>Assign</code> フィールドで設定し、後続のステートで <code>$変数名</code> で参照します。Pass ステートを挟む必要がなくなる強力な機能です。',
+    notes: 'バインドされている変数: <code>$userId = "user-42"</code>'
+  },
+  {
+    id: 24, level: 5, category: 'Step Functions 実践',
+    title: 'ネストした配列を集計',
+    desc: '注文ごとに複数の商品行があります。<strong>全注文を通した</strong>総売上（数量×単価の総和）を返してください。',
+    input: { orders: [
+      { id: 'O1', items: [{ price: 100, qty: 2 }, { price: 50, qty: 3 }] },
+      { id: 'O2', items: [{ price: 200, qty: 1 }] },
+      { id: 'O3', items: [{ price: 80, qty: 5 }, { price: 120, qty: 2 }] }
+    ]},
+    expected: 1190,
+    hint: '<code>orders.items</code> でネスト配列がフラットに展開されます。あとは各行の <code>price * qty</code> を <code>$sum</code> で合計します。',
+    solution: '$sum($states.input.orders.items.(price * qty))',
+    explanation: 'JSONata の <code>.</code> 連結はネストした配列を自動でフラット化します。<code>.( 式 )</code> で各要素のコンテキストで任意の式を評価できます。Lambda を立てずにここまで集計できます。'
+  },
+  {
+    id: 25, level: 5, category: 'Step Functions 実践',
+    title: '総合演習: 並列結果を構造化',
+    desc: '直前の Parallel で、ブランチ1がユーザー情報、ブランチ2が注文履歴を返しています。これらを使って <code>{ "user": {ユーザー情報}, "orderCount": 件数, "totalSpend": 合計 }</code> を組み立ててください。',
+    input: {},
+    bindings: {
+      result: [
+        { userId: 'U-1', name: 'Alice', tier: 'gold' },
+        { orders: [
+          { id: 'O-1', total: 100 },
+          { id: 'O-2', total: 250 },
+          { id: 'O-3', total: 75 }
+        ]}
+      ]
+    },
+    expected: {
+      user: { userId: 'U-1', name: 'Alice', tier: 'gold' },
+      orderCount: 3,
+      totalSpend: 425
+    },
+    hint: '<code>(...)</code> 内で <code>$var := 式;</code> としてローカル変数を定義できます。<code>$states.result[0]</code> と <code>$states.result[1]</code> を分けて束縛すると読みやすくなります。',
+    solution: `(
+  $u := $states.result[0];
+  $o := $states.result[1];
+  {
+    "user": $u,
+    "orderCount": $count($o.orders),
+    "totalSpend": $sum($o.orders.total)
+  }
+)`,
+    explanation: '実務で出てくる集約パターンの縮図です。<code>(...)</code> のブロック内では <code>:=</code> でローカル束縛を作れます。複雑な変換を読みやすく分割するときの定石。これが書ければ、JSONata で日常のオーケストレーションは大体こなせます。',
+    notes: 'このステートでは <code>$states.result</code> が次の配列にバインドされています:'
+  },
+
+  // ============ Lv.6 高階関数 ============
+  {
+    id: 26, level: 6, category: '高階関数',
+    title: '$map で各要素を変換',
+    desc: '数値配列の各要素を2乗した、新しい配列を作ってください。',
+    input: { nums: [1, 2, 3, 4] },
+    expected: [1, 4, 9, 16],
+    hint: '<code>$map(配列, function($n){ ... })</code> で各要素に関数を適用します。',
+    solution: '$map($states.input.nums, function($n){ $n * $n })',
+    explanation: '<code>$map</code> はフィルタ <code>[...]</code> と違い、各要素を「変換」します。第2引数の無名関数（ラムダ）が JSONata の高階関数の要。Step Functions でも標準 JSONata 関数としてそのまま使えます。'
+  },
+  {
+    id: 27, level: 6, category: '高階関数',
+    title: '$filter で関数フィルタ',
+    desc: '数値配列から、<code>10</code> より大きい要素だけを抜き出してください（関数版フィルタ）。',
+    input: { nums: [5, 12, 3, 20, 8] },
+    expected: [12, 20],
+    hint: '<code>$filter(配列, function($n){ 条件 })</code>。<code>[...]</code> フィルタの関数版です。',
+    solution: '$filter($states.input.nums, function($n){ $n > 10 })',
+    explanation: '<code>$filter</code> は <code>[式]</code> と同じ絞り込みを関数で書く形。条件が複雑なときや、関数を変数に入れて使い回したいときに有効です。'
+  },
+  {
+    id: 28, level: 6, category: '高階関数',
+    title: '$reduce で畳み込み',
+    desc: '数値配列のすべての要素を掛け合わせた積を求めてください。',
+    input: { nums: [1, 2, 3, 4, 5] },
+    expected: 120,
+    hint: '<code>$reduce(配列, function($acc, $n){ ... }, 初期値)</code> で畳み込みます。',
+    solution: '$reduce($states.input.nums, function($acc, $n){ $acc * $n }, 1)',
+    explanation: '<code>$reduce</code> は配列を1つの値に畳み込む汎用関数。<code>$acc</code> が累積値、<code>$n</code> が現在の要素、最後の引数が初期値です。合計・積・オブジェクト構築まで、何でも作れる土台になります。'
+  },
+  {
+    id: 29, level: 6, category: '高階関数',
+    title: '$sort でカスタム降順',
+    desc: 'ユーザー一覧を年齢の降順（大きい順）に並べ、<code>name</code> だけを取り出してください。',
+    input: { users: [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+      { name: 'Carol', age: 40 }
+    ]},
+    expected: ['Carol', 'Alice', 'Bob'],
+    hint: '<code>$sort(配列, function($a, $b){ $a.age < $b.age })</code>。比較関数が true を返すと <code>$a</code> を後ろに置きます。',
+    solution: '$sort($states.input.users, function($a, $b){ $a.age < $b.age }).name',
+    explanation: '<code>^()</code> 演算子と違い、<code>$sort</code> はカスタム比較関数で任意の順序を作れます。比較関数は「<code>$a</code> を <code>$b</code> より後ろに置くか」を真偽で返す点に注意。並べ替えた後に <code>.name</code> で射影しています。'
+  },
+  {
+    id: 30, level: 6, category: '高階関数',
+    title: 'グルーピング',
+    desc: '商品リストを <code>cat</code>（カテゴリ）ごとにまとめ、<code>{ "カテゴリ": [名前...] }</code> の形にしてください。',
+    input: { items: [
+      { cat: 'food', name: 'apple' },
+      { cat: 'food', name: 'bread' },
+      { cat: 'toy', name: 'car' },
+      { cat: 'toy', name: 'doll' }
+    ]},
+    expected: { food: ['apple', 'bread'], toy: ['car', 'doll'] },
+    hint: 'グルーピング演算子 <code>配列{ キー式: 値式 }</code> を使います。',
+    solution: '$states.input.items{ cat: name }',
+    explanation: 'JSONata の <code>{ }</code> グルーピングは SQL の <code>GROUP BY</code> に相当します。キー式でグループ化し、同じキーに集まった値式が配列になります。集計関数と組み合わせると強力です。'
+  },
+
+  // ============ Lv.7 文字列・数値・日時 ============
+  {
+    id: 31, level: 7, category: '文字列・数値・日時',
+    title: '$split で分割',
+    desc: 'カンマ区切りの文字列を、配列に分割してください。',
+    input: { csv: 'a,b,c,d' },
+    expected: ['a', 'b', 'c', 'd'],
+    hint: '<code>$split(文字列, 区切り文字)</code> を使います。',
+    solution: '$split($states.input.csv, ",")',
+    explanation: '<code>$split</code> は区切り文字（または正規表現）で文字列を配列化します。逆操作は <code>$join</code>。CSV 風データの取り回しで頻出です。'
+  },
+  {
+    id: 32, level: 7, category: '文字列・数値・日時',
+    title: '$replace で置換',
+    desc: '電話番号のハイフンをすべて取り除いてください。',
+    input: { phone: '090-1234-5678' },
+    expected: '09012345678',
+    hint: '<code>$replace(文字列, 対象, 置換後)</code>。一致箇所はすべて置換されます。',
+    solution: '$replace($states.input.phone, "-", "")',
+    explanation: '<code>$replace</code> はデフォルトで全置換です。第2引数に正規表現 <code>/.../</code> を渡せばパターン置換も可能（例: <code>/[^0-9]/</code> で数字以外を除去）。'
+  },
+  {
+    id: 33, level: 7, category: '文字列・数値・日時',
+    title: '$substringAfter で抽出',
+    desc: 'メールアドレスからドメイン部分（<code>@</code> より後ろ）を取り出してください。',
+    input: { email: 'user@example.com' },
+    expected: 'example.com',
+    hint: '<code>$substringAfter(文字列, 区切り)</code> で区切りより後ろを取得します。',
+    solution: '$substringAfter($states.input.email, "@")',
+    explanation: '<code>$substringBefore</code> / <code>$substringAfter</code> はデリミタ基準の切り出しに便利。位置指定で切るなら <code>$substring(str, 開始, 長さ)</code> を使います。'
+  },
+  {
+    id: 34, level: 7, category: '文字列・数値・日時',
+    title: '$formatNumber で桁区切り',
+    desc: '金額を <code>1,234,567.50</code> のように3桁区切り＋小数2桁の文字列に整形してください。',
+    input: { amount: 1234567.5 },
+    expected: '1,234,567.50',
+    hint: '<code>$formatNumber(数値, "#,##0.00")</code>。ピクチャ文字列で書式を指定します。',
+    solution: '$formatNumber($states.input.amount, "#,##0.00")',
+    explanation: '<code>$formatNumber</code> はピクチャ文字列で数値を整形します。<code>#</code> は任意桁、<code>0</code> は必須桁、<code>,</code> は桁区切り。通知メッセージの金額表示などで活躍します。'
+  },
+  {
+    id: 35, level: 7, category: '文字列・数値・日時',
+    title: '$fromMillis で日付整形',
+    desc: 'ミリ秒の Unix タイムスタンプを、<code>YYYY-MM-DD</code> 形式の日付文字列（UTC）に整形してください。',
+    input: { ts: 1700000000000 },
+    expected: '2023-11-14',
+    hint: '<code>$fromMillis(ミリ秒, "[Y0001]-[M01]-[D01]")</code>。第2引数がピクチャ文字列です。',
+    solution: '$fromMillis($states.input.ts, "[Y0001]-[M01]-[D01]")',
+    explanation: '<code>$fromMillis</code> は第2引数のピクチャ文字列で出力書式を制御できます（XPath の日時フォーマット記法）。タイムゾーン指定が無ければ UTC。逆変換は <code>$toMillis</code> です。'
+  },
+
+  // ============ Lv.8 Step Functions 実戦 ============
+  {
+    id: 36, level: 8, category: 'Step Functions 実戦',
+    title: 'Map 結果を集計',
+    desc: 'Map ステートで各注文を処理した結果が <code>$states.result</code> に配列で入っています。<code>amount</code> の合計を求めてください。',
+    input: {},
+    bindings: { result: [
+      { id: 1, amount: 100 },
+      { id: 2, amount: 200 },
+      { id: 3, amount: 50 }
+    ]},
+    expected: 350,
+    hint: '<code>$states.result.amount</code> で各要素の amount を集めた配列になります。これを <code>$sum</code> に渡します。',
+    solution: '$sum($states.result.amount)',
+    explanation: 'Map ステートの出力は配列として <code>$states.result</code> に入ります。<code>.amount</code> のパス射影で値だけを集め、<code>$sum</code> で集計。Map の後段で最頻出の集約パターンです。',
+    notes: 'このステートでは <code>$states.result</code> が次の配列にバインドされています:'
+  },
+  {
+    id: 37, level: 8, category: 'Step Functions 実戦',
+    title: 'Catch のエラー整形',
+    desc: 'Catch でタスクのエラーを受け取りました。エラー情報を <code>{ "code": エラー名, "reason": 原因 }</code> の形に整形してください。',
+    input: { Error: 'States.TaskFailed', Cause: 'Lambda function timed out' },
+    expected: { code: 'States.TaskFailed', reason: 'Lambda function timed out' },
+    hint: 'Catch で受け取るエラーは <code>$states.input</code> に <code>Error</code> / <code>Cause</code> として入ります。',
+    solution: '{ "code": $states.input.Error, "reason": $states.input.Cause }',
+    explanation: '<code>Catch</code> でエラーを捕捉すると、後続ステートの入力（<code>$states.input</code>）に <code>Error</code>（エラー名）と <code>Cause</code>（詳細）が渡ります。これを整形して通知やログ用の形に変換するのが定番です。'
+  },
+  {
+    id: 38, level: 8, category: 'Step Functions 実戦',
+    title: '変数に加算（Assign）',
+    desc: 'Assign で持ち回っている合計 <code>$total</code>（現在 1000）に、今回の入力 <code>amount</code> を足し込んでください。',
+    input: { amount: 250 },
+    bindings: { total: 1000 },
+    expected: 1250,
+    hint: '変数は <code>$total</code> で参照。入力は <code>$states.input.amount</code> です。',
+    solution: '$total + $states.input.amount',
+    explanation: '<code>Assign</code> で更新した変数をステートをまたいで持ち回り、ループや累積に使うパターンです。変数 <code>$total</code> と <code>$states.input</code> を組み合わせて次の値を計算します。',
+    notes: 'バインドされている変数: <code>$total = 1000</code>'
+  },
+  {
+    id: 39, level: 8, category: 'Step Functions 実戦',
+    title: 'payload をパースして集計',
+    desc: 'API Gateway 経由の Lambda 入力で、本体が JSON 文字列の <code>body</code> に入っています。パースして、全明細の <code>price × qty</code> の合計を求めてください。',
+    input: { body: '{"items":[{"price":100,"qty":2},{"price":50,"qty":3}]}' },
+    expected: 350,
+    hint: 'まず <code>$parse($states.input.body)</code> でオブジェクト化し、<code>.items.(price * qty)</code> で各明細の小計配列を作って <code>$sum</code> します。',
+    solution: '$sum($parse($states.input.body).items.(price * qty))',
+    explanation: '文字列化された JSON ペイロード（Lambda プロキシ統合で頻出）を <code>$parse</code> で展開し、そのまま集計まで一気通貫。<code>(price * qty)</code> は各要素のコンテキストで計算されます。'
+  },
+  {
+    id: 40, level: 8, category: 'Step Functions 実戦',
+    title: '総合: 結果と変数を合成',
+    desc: 'バッチ処理の結果 <code>$states.result</code> と変数 <code>$operator</code> を使って、<code>{ "count": 件数, "totalQty": 数量合計, "by": 担当 }</code> を組み立ててください。',
+    input: {},
+    bindings: {
+      operator: 'batch-1',
+      result: [
+        { sku: 'A', qty: 2 },
+        { sku: 'B', qty: 5 }
+      ]
+    },
+    expected: { count: 2, totalQty: 7, by: 'batch-1' },
+    hint: '<code>$count</code> / <code>$sum</code> と変数 <code>$operator</code> を1つのオブジェクトにまとめます。',
+    solution: '{ "count": $count($states.result), "totalQty": $sum($states.result.qty), "by": $operator }',
+    explanation: '結果配列の集計と変数参照を組み合わせた、実務の締めに出てくる総合パターン。<code>$states.result</code>・変数・集計関数・オブジェクト構築という道場の要素が一通り詰まっています。',
+    notes: '<code>$states.result</code> の配列と、変数 <code>$operator = "batch-1"</code> がバインドされています:'
+  }
+];
+
+// =============================================================
+//  State
+// =============================================================
+const STORAGE_KEY = 'jsonata-dojo-v1';
+const ARCHIVED_KEYS = []; // 過去バージョンのキー。互換性破壊時にここへ旧キーを追加
+function removeArchivedKeys() {
+  try {
+    ARCHIVED_KEYS.forEach(k => {
+      localStorage.removeItem(k);
+      localStorage.removeItem(k + ':drafts');
+    });
+  } catch (e) { /* ignore */ }
+}
+let state = {
+  current: 0,
+  status: {}, // problem id -> 'done' | 'attempted'
+};
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch (e) { /* ignore */ }
+}
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+}
+
+// =============================================================
+//  JSON utilities
+// =============================================================
+const EPSILON = 1e-9;
+
+// オブジェクトのキー順を安定化（表示・比較用）
+function normalize(v) {
+  if (v === null || v === undefined) return v;
+  if (Array.isArray(v)) return v.map(normalize);
+  if (typeof v === 'object') {
+    const out = {};
+    Object.keys(v).sort().forEach(k => { out[k] = normalize(v[k]); });
+    return out;
+  }
+  return v;
+}
+
+// 配列も含めて再帰的にソート（順不同採点用）
+function sortDeep(v) {
+  if (Array.isArray(v)) {
+    return v.map(sortDeep).sort((a, b) =>
+      JSON.stringify(normalize(a)) < JSON.stringify(normalize(b)) ? -1 : 1);
+  }
+  if (v && typeof v === 'object') {
+    const out = {};
+    Object.keys(v).sort().forEach(k => { out[k] = sortDeep(v[k]); });
+    return out;
+  }
+  return v;
+}
+
+// 数値は許容誤差、それ以外は構造一致で比較
+function valueEqual(a, b) {
+  if (typeof a === 'number' && typeof b === 'number') {
+    return Math.abs(a - b) <= EPSILON * Math.max(1, Math.abs(a), Math.abs(b));
+  }
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((x, i) => valueEqual(x, b[i]));
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object'
+      && !Array.isArray(a) && !Array.isArray(b)) {
+    const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+    return ka.length === kb.length
+      && ka.every((k, i) => k === kb[i] && valueEqual(a[k], b[k]));
+  }
+  return a === b;
+}
+
+// 問題の採点モードに応じて判定: 'exact'(既定) | 'unordered' | 'custom'
+function grade(actual, problem) {
+  switch (problem.match || 'exact') {
+    case 'unordered':
+      return valueEqual(sortDeep(actual), sortDeep(problem.expected));
+    case 'custom':
+      try { return !!problem.matcher(actual); } catch (e) { return false; }
+    case 'exact':
+    default:
+      return valueEqual(actual, problem.expected);
+  }
+}
+function fmtJSON(v, indent = 2) {
+  return JSON.stringify(v, null, indent);
+}
+function highlightJSON(str) {
+  return str
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")(\s*:)/g, '<span class="json-key">$1</span>$2')
+    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="json-str">$1</span>')
+    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="json-num">$1</span>')
+    .replace(/:\s*(true|false)/g, ': <span class="json-bool">$1</span>')
+    .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+}
+
+// =============================================================
+//  Rendering
+// =============================================================
+function renderSidebar() {
+  const list = document.getElementById('problemList');
+  const levels = {};
+  PROBLEMS.forEach(p => {
+    if (!levels[p.level]) levels[p.level] = { name: p.category, items: [] };
+    levels[p.level].items.push(p);
+  });
+
+  let html = '';
+  Object.entries(levels).forEach(([lv, group]) => {
+    const done = group.items.filter(p => state.status[p.id] === 'done').length;
+    html += `<div class="level-group">
+      <div class="level-header">
+        <span class="level-num">Lv.${lv}</span>
+        <span class="level-name">${group.name}</span>
+        <span class="level-count">${done}/${group.items.length}</span>
+      </div>`;
+    group.items.forEach((p, idx) => {
+      const status = state.status[p.id] || '';
+      const isActive = PROBLEMS[state.current]?.id === p.id;
+      html += `<div class="problem-link ${status} ${isActive ? 'active' : ''}" onclick="goToProblem(${PROBLEMS.indexOf(p)})">
+        <span class="pnum">${String(p.id).padStart(2, '0')}</span>
+        <span class="ptitle">${p.title}</span>
+        <span class="pdot"></span>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  list.innerHTML = html;
+
+  const doneCount = Object.values(state.status).filter(s => s === 'done').length;
+  document.getElementById('topProgress').innerHTML = `<strong>${doneCount}</strong> / ${PROBLEMS.length}`;
+  document.getElementById('mobileCurrent').textContent = `${state.current + 1} / ${PROBLEMS.length}`;
+}
+
+// 問題を「空入力 {} でそのまま実機実行できる」スタンドアロンASLに変換する。
+// セットアップ用 Pass で入力をリテラル出力＋変数を Assign し、解答 Pass で式を評価する。
+function buildStandaloneASL(p) {
+  const varKeys = p.bindings ? Object.keys(p.bindings).filter(k => k !== 'result' && k !== 'states') : [];
+  const usesResult = /\$states\.result/.test(p.solution) || !!(p.bindings && 'result' in p.bindings);
+  let solution = p.solution;
+  const assign = {};
+  varKeys.forEach(k => { assign[k] = p.bindings[k]; });
+  let note = '空入力 {} でそのまま実行できます';
+  if (usesResult) {
+    assign.sfnResult = p.bindings.result;
+    solution = solution.replace(/\$states\.result/g, '$sfnResult');
+    note += ' ／ $states.result は変数 $sfnResult として再現';
+  }
+  const setup = { Type: 'Pass', Output: p.input ?? {}, Next: '解答' };
+  if (Object.keys(assign).length) setup.Assign = assign;
+  const asl = {
+    Comment: `JSONata ノック道場 No.${p.id}: ${p.title} — ${note}（期待値: ${JSON.stringify(p.expected)}）`,
+    QueryLanguage: 'JSONata',
+    StartAt: 'セットアップ',
+    States: {
+      'セットアップ': setup,
+      '解答': { Type: 'Pass', Output: `{% ${solution} %}`, End: true },
+    },
+  };
+  return JSON.stringify(asl, null, 2);
+}
+
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) { /* fall through */ }
+  try { // file:// や非セキュアコンテキスト向けフォールバック
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand('copy'); document.body.removeChild(ta); return ok;
+  } catch (e) { return false; }
+}
+
+async function copyStandaloneASL() {
+  const p = PROBLEMS[state.current];
+  const btn = document.getElementById('copyAslBtn');
+  const ok = await copyToClipboard(buildStandaloneASL(p));
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = ok ? 'コピーしました ✓' : 'コピー失敗（手動で選択してください）';
+    setTimeout(() => { btn.textContent = orig; }, 1800);
+  }
+}
+
+function renderProblem() {
+  const main = document.getElementById('main');
+  const p = PROBLEMS[state.current];
+  const hasResult = !!p.bindings?.result;
+  const hasVars = p.bindings && Object.keys(p.bindings).some(k => k !== 'result');
+
+  let html = `
+    <div class="problem-meta">
+      <span class="cat">Lv.${p.level} — ${p.category}</span>
+      <span>No.${String(p.id).padStart(2, '0')} / ${PROBLEMS.length}</span>
+    </div>
+    <h2 class="problem-num"><em>${String(p.id).padStart(2, '0')}</em></h2>
+    <h1 class="problem-title">${p.title}</h1>
+    <div class="problem-desc">${p.desc}</div>
+
+    <div class="grid-2">
+      <div>
+        <div class="section-label">入力 / $states.input</div>
+        <div class="panel">
+          <div class="panel-head"><span>JSON</span><span>read-only</span></div>
+          <div class="panel-body">${highlightJSON(fmtJSON(p.input))}</div>
+        </div>
+        ${p.notes ? `<div class="section-label" style="margin-top:18px">${p.notes.replace(/<code>/g, '<code style="font-family:var(--mono);color:var(--accent)">')}</div>` : ''}
+        ${hasResult ? `<div class="panel" ${p.notes ? '' : 'style="margin-top:18px"'}>
+          <div class="panel-head"><span>$states.result</span><span>parallel out</span></div>
+          <div class="panel-body">${highlightJSON(fmtJSON(p.bindings.result))}</div>
+        </div>` : ''}
+      </div>
+      <div>
+        <div class="section-label">期待される出力</div>
+        <div class="panel">
+          <div class="panel-head"><span>Expected</span><span>match exactly</span></div>
+          <div class="panel-body">${highlightJSON(fmtJSON(p.expected))}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">あなたの JSONata 式</div>
+    <div class="editor-wrap">
+      <div class="editor-head">
+        <span class="editor-head-left">JSONata Expression</span>
+        <span class="editor-shortcut"><kbd>⌘</kbd> + <kbd>Enter</kbd> で実行</span>
+      </div>
+      <textarea class="editor" id="editor" spellcheck="false" placeholder="ここに式を書く。例: $states.input.foo">${getSavedExpr(p.id)}</textarea>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="runCurrent()">実行する</button>
+      <button class="btn btn-secondary" onclick="clearEditor()">クリア</button>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <div class="helpers">
+      <details class="helper">
+        <summary>ヒント</summary>
+        <div class="helper-body">${p.hint}</div>
+      </details>
+      <details class="helper">
+        <summary>解答を見る</summary>
+        <div class="helper-body">
+          <pre>${escapeHTML(p.solution)}</pre>
+          <p style="margin-top:14px">${p.explanation}</p>
+        </div>
+      </details>
+      <details class="helper">
+        <summary>実機で動かす — ASL をコピー</summary>
+        <div class="helper-body">
+          <p>この問題を <strong>本物の AWS Step Functions</strong> でそのまま動かせる ASL（ステートマシン定義）をコピーします。コンソールで新しいステートマシンを作成して貼り付け、<strong>空の入力 <code>{}</code></strong> で「実行を開始」すると、最後の <code>解答</code> ステートの出力に答えが出ます。</p>
+          <button class="btn btn-secondary" id="copyAslBtn" onclick="copyStandaloneASL()">📋 ASL をコピー</button>
+          <p style="margin-top:12px;color:var(--text-dim);font-size:.85em">入力は <code>セットアップ</code> ステートに埋め込み済みなので、入力欄は空のままで実行できます。${p.bindings?.result ? '（<code>$states.result</code> は変数 <code>$sfnResult</code> として再現しています）' : ''}</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="nav-footer">
+      <button class="nav-btn" onclick="goPrev()" ${state.current === 0 ? 'disabled' : ''}>
+        <div class="nav-dir">← 前の問題</div>
+        <div class="nav-title">${PROBLEMS[state.current - 1]?.title || '—'}</div>
+      </button>
+      <button class="nav-btn next" onclick="goNext()" ${state.current === PROBLEMS.length - 1 ? 'disabled' : ''}>
+        <div class="nav-dir">次の問題 →</div>
+        <div class="nav-title">${PROBLEMS[state.current + 1]?.title || '—'}</div>
+      </button>
+    </div>
+  `;
+
+  main.innerHTML = html;
+
+  // Tab key handling in editor
+  const editor = document.getElementById('editor');
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, t = editor.value;
+      editor.value = t.substring(0, s) + '  ' + t.substring(editor.selectionEnd);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+    } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runCurrent();
+    }
+  });
+  editor.addEventListener('input', () => saveExpr(p.id, editor.value));
+  editor.focus();
+}
+
+function escapeHTML(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// =============================================================
+//  Editor draft persistence (per problem)
+// =============================================================
+function getSavedExpr(pid) {
+  try {
+    const drafts = JSON.parse(localStorage.getItem(STORAGE_KEY + ':drafts') || '{}');
+    return drafts[pid] || '';
+  } catch (e) { return ''; }
+}
+function saveExpr(pid, val) {
+  try {
+    const drafts = JSON.parse(localStorage.getItem(STORAGE_KEY + ':drafts') || '{}');
+    drafts[pid] = val;
+    localStorage.setItem(STORAGE_KEY + ':drafts', JSON.stringify(drafts));
+  } catch (e) { /* ignore */ }
+}
+
+// =============================================================
+//  Run / Validate
+// =============================================================
+async function runCurrent() {
+  const p = PROBLEMS[state.current];
+  const expr = document.getElementById('editor').value.trim();
+  const resultEl = document.getElementById('result');
+  if (!expr) {
+    resultEl.className = 'result show err';
+    resultEl.innerHTML = `<div class="result-head"><span class="result-head-icon">!</span>式が空です</div>
+      <div class="result-body">JSONata 式を入力してから実行してください。</div>`;
+    return;
+  }
+  if (!window.jsonata) {
+    resultEl.className = 'result show err';
+    resultEl.innerHTML = `<div class="result-head"><span class="result-head-icon">!</span>JSONata 未ロード</div>
+      <div class="result-body">ネットワークから JSONata エンジンを読み込めませんでした。ページを再読み込みしてください。</div>`;
+    return;
+  }
+
+  try {
+    const compiled = window.jsonata(expr);
+    // Step Functions 互換: $parse を JSON.parse として登録
+    try {
+      compiled.registerFunction('parse', (s) => JSON.parse(s), '<s:o>');
+    } catch (e) { /* version によっては不要 */ }
+
+    const bindings = {
+      states: {
+        input: p.input,
+        result: p.bindings?.result
+      }
+    };
+    // 変数バインディング (例: $userId)。'states' と 'result' は予約キー
+    if (p.bindings) {
+      Object.keys(p.bindings).forEach(k => {
+        if (k !== 'result' && k !== 'states') bindings[k] = p.bindings[k];
+      });
+    }
+
+    // Step Functions 互換: 評価コンテキストは渡さない。
+    // 入力は $states.input 経由でのみ参照でき、裸の `orderId` は本番同様 undefined になる。
+    const actual = await compiled.evaluate(undefined, bindings);
+    const passed = grade(actual, p);
+
+    if (passed) {
+      state.status[p.id] = 'done';
+      saveState();
+      renderSidebar();
+      resultEl.className = 'result show ok';
+      resultEl.innerHTML = `
+        <div class="result-head"><span class="result-head-icon">✓</span>正解 — お見事</div>
+        <div class="result-body">${highlightJSON(fmtJSON(actual))}</div>`;
+    } else {
+      if (state.status[p.id] !== 'done') state.status[p.id] = 'attempted';
+      saveState();
+      renderSidebar();
+      resultEl.className = 'result show err';
+      // 結果が undefined で式に $states が無い場合は、裸参照の可能性をガイド
+      const accessHint = (actual === undefined && !/\$states\b/.test(expr))
+        ? `<div class="result-body" style="margin-bottom:8px;color:var(--text-dim)">入力データは <code>$states.input</code> から参照します。例: <code>$states.input.フィールド名</code></div>`
+        : '';
+      resultEl.innerHTML = `
+        <div class="result-head"><span class="result-head-icon">✕</span>期待値と一致しません</div>
+        ${accessHint}
+        <div class="result-body">
+          <div class="result-diff">
+            <div>
+              <div class="diff-col-label">あなたの結果</div>
+              <div class="diff-col-body">${highlightJSON(fmtJSON(actual === undefined ? null : actual))}</div>
+            </div>
+            <div>
+              <div class="diff-col-label">期待される結果</div>
+              <div class="diff-col-body">${highlightJSON(fmtJSON(p.expected))}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+  } catch (err) {
+    state.status[p.id] = 'attempted';
+    saveState();
+    renderSidebar();
+    resultEl.className = 'result show err';
+    resultEl.innerHTML = `<div class="result-head"><span class="result-head-icon">!</span>式の評価でエラー</div>
+      <div class="result-body">${escapeHTML(err.message || String(err))}</div>`;
+  }
+}
+
+function clearEditor() {
+  const ed = document.getElementById('editor');
+  ed.value = '';
+  saveExpr(PROBLEMS[state.current].id, '');
+  document.getElementById('result').className = 'result';
+  ed.focus();
+}
+
+// =============================================================
+//  Navigation
+// =============================================================
+function goToProblem(idx) {
+  state.current = idx;
+  saveState();
+  renderProblem();
+  renderSidebar();
+  document.getElementById('sidebar').classList.remove('open');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function goNext() { if (state.current < PROBLEMS.length - 1) goToProblem(state.current + 1); }
+function goPrev() { if (state.current > 0) goToProblem(state.current - 1); }
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function toggleCheatsheet() { document.getElementById('cheatOverlay').classList.toggle('open'); }
+function goHome() { showWelcome(); }
+
+// =============================================================
+//  Theme (dark / light) — 進捗とは別キーで保持し、リセットの影響を受けない
+// =============================================================
+const THEME_KEY = 'jsonata-dojo-theme';
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.textContent = theme === 'light' ? '☀️' : '🌙';
+    btn.title = theme === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え';
+  }
+}
+function loadTheme() {
+  let theme;
+  try { theme = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
+  if (!theme) {
+    // 保存が無ければ OS 設定に追従（既定はダーク）
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    theme = prefersLight ? 'light' : 'dark';
+  }
+  applyTheme(theme);
+}
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+}
+
+// Escape でチートシートを閉じる
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('cheatOverlay').classList.remove('open');
+});
+
+function showWelcome() {
+  const main = document.getElementById('main');
+  const doneCount = Object.values(state.status).filter(s => s === 'done').length;
+  main.innerHTML = `
+    <div class="welcome">
+      <div class="welcome-eyebrow">JSONata × Step Functions / 40本ノック</div>
+      <h1>JSONata <em>ノック</em>道場</h1>
+      <p class="welcome-sub">AWS Step Functions の新しいクエリ言語を、<br>手を動かして身につける。</p>
+      <div class="welcome-body">
+        <p>2024年11月、Step Functions に <strong>JSONata</strong> と <strong>Variables</strong> がやってきた。これまで <code>InputPath</code>・<code>Parameters</code>・<code>ResultSelector</code>・<code>ResultPath</code>・<code>OutputPath</code> を組み合わせて苦労していたデータ変換が、ぐっとシンプルになる。</p>
+        <p>でも、クエリ言語は触らないと身につかない。この道場では、<strong>$states.input</strong> へのアクセスから、Parallel 結果のマージ、Step Functions 独自の <code>$parse</code>、さらに高階関数・Map/Catch/Assign の実戦まで、40本のドリルを段階的に用意した。</p>
+        <p>すべての問題は <strong>Step Functions と同じ文脈</strong>で動く。<code>$states.input</code>、<code>$states.result</code>、変数バインディング ── 本番と同じ書き方で練習できる。</p>
+      </div>
+      <button class="btn btn-primary" onclick="goToProblem(${doneCount > 0 && doneCount < PROBLEMS.length ? findNextUnsolved() : 0})">
+        ${doneCount === 0 ? '一本目から始める →' : doneCount === PROBLEMS.length ? 'もう一度やる →' : '続きから →'}
+      </button>
+    </div>`;
+}
+
+function findNextUnsolved() {
+  for (let i = 0; i < PROBLEMS.length; i++) {
+    if (state.status[PROBLEMS[i].id] !== 'done') return i;
+  }
+  return 0;
+}
+
+function resetProgress() {
+  if (!confirm('進捗と下書きをすべて消去します。よろしいですか？')) return;
+  state = { current: 0, status: {} };
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY + ':drafts');
+  } catch (e) { /* ignore */ }
+  renderSidebar();
+  showWelcome();
+}
+
+// expose to global for inline handlers
+window.goToProblem = goToProblem;
+window.goNext = goNext;
+window.goPrev = goPrev;
+window.toggleSidebar = toggleSidebar;
+window.toggleCheatsheet = toggleCheatsheet;
+window.toggleTheme = toggleTheme;
+window.runCurrent = runCurrent;
+window.clearEditor = clearEditor;
+window.copyStandaloneASL = copyStandaloneASL;
+window.resetProgress = resetProgress;
+window.goHome = goHome;
+
+// =============================================================
+//  Init
+// =============================================================
+function init() {
+  removeArchivedKeys();
+  loadTheme();
+  loadState();
+  renderSidebar();
+  showWelcome();
+  if (location.search.includes('selftest')) runSelfTest();
+  // hide loader once jsonata is ready (or after timeout)
+  const hideLoader = () => {
+    setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 200);
+  };
+  if (window.jsonata) hideLoader();
+  else window.addEventListener('jsonata-ready', hideLoader);
+  // hard timeout fallback (計測目標3秒とは別の、強制終了の安全弁)
+  setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 4500);
+}
+
+// 全問題の模範解答が正解判定になるかを検証する隠しモード (?selftest)
+async function runSelfTest() {
+  const waitEngine = () => new Promise(res => {
+    if (window.jsonata) return res();
+    window.addEventListener('jsonata-ready', res, { once: true });
+    setTimeout(res, 5000);
+  });
+  await waitEngine();
+  if (!window.jsonata) { console.error('[selftest] jsonata 未ロード'); return; }
+  const failures = [];
+  for (const p of PROBLEMS) {
+    try {
+      const compiled = window.jsonata(p.solution);
+      try { compiled.registerFunction('parse', s => JSON.parse(s), '<s:o>'); } catch (e) {}
+      const bindings = { states: { input: p.input, result: p.bindings?.result } };
+      if (p.bindings) Object.keys(p.bindings).forEach(k => {
+        if (k !== 'result' && k !== 'states') bindings[k] = p.bindings[k];
+      });
+      const actual = await compiled.evaluate(undefined, bindings);
+      if (!grade(actual, p)) failures.push({ id: p.id, title: p.title, actual, expected: p.expected });
+    } catch (err) {
+      failures.push({ id: p.id, title: p.title, error: err.message || String(err) });
+    }
+  }
+  if (failures.length === 0) {
+    console.log(`%c[selftest] 全 ${PROBLEMS.length} 問の模範解答が正解 ✓`, 'color:#87b97a;font-weight:bold');
+  } else {
+    console.error(`[selftest] ${failures.length}/${PROBLEMS.length} 問が失敗:`, failures);
+  }
+  return failures;
+}
+
+init();
+</script>
+</body>
+</html>
