@@ -1603,6 +1603,115 @@ const PROBLEMS = [
     solution: '{ "count": $count($states.result), "totalQty": $sum($states.result.qty), "by": $operator }',
     explanation: '結果配列の集計と変数参照を組み合わせた、実務の締めに出てくる総合パターン。<code>$states.result</code>・変数・集計関数・オブジェクト構築という道場の要素が一通り詰まっています。',
     notes: '<code>$states.result</code> の配列と、変数 <code>$operator = "batch-1"</code> がバインドされています:'
+  },
+  {
+    id: 41, level: 9, category: '直接統合：入力を取り出す',
+    title: 'API Gateway の body を展開する',
+    desc: 'API Gateway → Step Functions の直接統合では、フォームの中身は<strong>文字列</strong>として <code>$states.input.body</code> に入ります。Lambda の <code>json.loads(event["body"])</code> に当たる処理を JSONata で書き、オブジェクトに展開してください。',
+    input: { body: '{"name":"田中","email":"tanaka@example.com","message":"こんにちは"}' },
+    expected: { name: '田中', email: 'tanaka@example.com', message: 'こんにちは' },
+    hint: 'body は JSON 文字列です。<code>$parse()</code> でオブジェクトにします。',
+    solution: '$parse($states.input.body)',
+    explanation: 'API Gateway 直接統合では body が文字列で渡ります。<code>$parse()</code> は Step Functions が用意する組み込み関数で、Lambda の <code>json.loads</code> 相当です。これを起点に、後続ステートが <code>$states.result</code> から各フィールドを参照します。'
+  },
+  {
+    id: 42, level: 9, category: '直接統合：入力を取り出す',
+    title: 'Pipes が渡す SQS メッセージを取り出す',
+    desc: 'EventBridge Pipes（source=SQS）は、メッセージを<strong>バッチ（配列）</strong>でターゲットに渡します。BatchSize=1 でも要素1の配列になります。先頭メッセージの <code>body</code> を取り出してオブジェクト化してください。',
+    input: [ { messageId: 'm-1', body: '{"id":"ORD-1","amount":1200}' } ],
+    expected: { id: 'ORD-1', amount: 1200 },
+    hint: '配列の先頭は <code>[0]</code>。その <code>body</code> を <code>$parse()</code> します。',
+    solution: '$parse($states.input[0].body)',
+    explanation: 'Pipes は常に配列でターゲットを起動します（1メッセージ1実行でも要素1の配列）。<code>$states.input[0].body</code> でメッセージ本文を取り、<code>$parse()</code> でオブジェクトにします。バッチサイズ>1 を使う場合は SFN 内の Map で各要素を回す設計になります。',
+    notes: '<code>$states.input</code> は配列で渡されます（Pipes のバッチ）:'
+  },
+  {
+    id: 43, level: 9, category: '直接統合：入力を取り出す',
+    title: 'Slack の blocks 形式を組み立てる',
+    desc: 'HTTP Task で Slack の Incoming Webhook を叩くため、ステータス文字列を Slack の <code>blocks</code> ペイロードに変換してください。Lambda で <code>requests.post(url, json={...})</code> していた整形部分にあたります。',
+    input: { status: '完了' },
+    expected: { blocks: [ { type: 'section', text: { type: 'mrkdwn', text: '*処理結果:* 完了' } } ] },
+    hint: 'mrkdwn の太字は <code>*</code> で囲みます。文字列は <code>&</code> で連結します。',
+    solution: '{ "blocks": [ { "type": "section", "text": { "type": "mrkdwn", "text": "*処理結果:* " & $states.input.status } } ] }',
+    explanation: 'JSONata のオブジェクト構築でリテラル部分を組み、可変部だけ <code>&</code> で連結して差し込みます。この結果を HTTP Task の <code>RequestBody</code> に渡せば webhook に直接ポストできます。成功/失敗でアイコンや色を変えたい場合は Choice + 入力で分岐します。'
+  },
+  {
+    id: 44, level: 9, category: '直接統合：入力を取り出す',
+    title: 'Bedrock のリクエスト body を組む',
+    desc: 'Bedrock 最適化統合（<code>bedrock:invokeModel</code>）に渡す、Claude messages 形式のリクエスト body を構築してください。ユーザーの質問を <code>messages</code> に埋め込みます。',
+    input: { question: 'S3とは何ですか？' },
+    expected: { anthropic_version: 'bedrock-2023-05-31', messages: [ { role: 'user', content: 'S3とは何ですか？' } ], max_tokens: 1024 },
+    hint: '<code>max_tokens</code> は<strong>数値リテラル</strong>で書きます。文字列にすると Bedrock に弾かれます。',
+    solution: '{ "anthropic_version": "bedrock-2023-05-31", "messages": [ { "role": "user", "content": $states.input.question } ], "max_tokens": 1024 }',
+    explanation: 'モデルごとに body schema が違います（Claude / Titan / Llama）。Claude は <code>anthropic_version</code> と messages 配列が必須です。<code>max_tokens</code> や <code>temperature</code> は数値リテラルで書きます。長い応答は 256KB 制限に当たるため、統合の <code>Output</code> に S3Uri を指定して退避できます。'
+  },
+  {
+    id: 45, level: 9, category: '直接統合：入力を取り出す',
+    title: 'ECS RunTask の環境変数を注入する',
+    desc: 'Fargate タスクに処理対象の S3 キーを環境変数として渡したい。<code>ecs:runTask</code> の <code>ContainerOverrides</code> を入力から動的に構築してください。',
+    input: { key: 'input/video.mp4' },
+    expected: { ContainerOverrides: [ { Name: 'app', Environment: [ { Name: 'INPUT_KEY', Value: 'input/video.mp4' } ] } ] },
+    hint: '深いネストもリテラルで組めます。可変部 <code>Value</code> だけ <code>$states.input.key</code> を差し込みます。',
+    solution: '{ "ContainerOverrides": [ { "Name": "app", "Environment": [ { "Name": "INPUT_KEY", "Value": $states.input.key } ] } ] }',
+    explanation: 'コンテナ名・環境変数名は固定で、値だけ入力から差し込む典型パターンです。<code>ecs:runTask.sync</code> ならこの1ステートで起動と完了待ちを兼ねられます。タスク定義 ARN を <code>:latest</code> で指定すると事故るのでリビジョン固定が安全です。'
+  },
+  {
+    id: 46, level: 10, category: '直接統合：結果を組み立てる',
+    title: 'Bedrock の応答から回答を抜く',
+    desc: 'Bedrock 最適化統合の結果は <code>$states.result</code> に入ります。Claude の応答構造から、回答テキストだけを取り出してください。',
+    input: {},
+    bindings: { result: { Body: { content: [ { type: 'text', text: 'S3はオブジェクトストレージです' } ] } } },
+    expected: 'S3はオブジェクトストレージです',
+    hint: 'Task の結果は <code>$states.result</code>。content は配列なので <code>[0]</code> です。',
+    solution: '$states.result.Body.content[0].text',
+    explanation: 'Lambda の <code>json.loads(resp["body"].read())["content"][0]["text"]</code> に当たります。Bedrock 統合は応答を <code>Body</code> 配下に入れて返すため、<code>$states.result.Body</code> を起点にたどります。',
+    notes: '<code>$states.result</code> に Bedrock の応答がバインドされています:'
+  },
+  {
+    id: 47, level: 10, category: '直接統合：結果を組み立てる',
+    title: 'DynamoDB の型付き形式に変換する',
+    desc: 'クイズデータ1件を <code>dynamodb:batchWriteItem</code> の <code>PutRequest</code> 形式に変換してください。DynamoDB 統合は最適化・SDK いずれも<strong>型付き形式を手書き</strong>する必要があります（自動変換はされません）。',
+    input: { id: 'q-001', service: 'S3', answer: 'AWS', difficulty: 3 },
+    expected: { PutRequest: { Item: { id: { S: 'q-001' }, service: { S: 'S3' }, answer: { S: 'AWS' }, difficulty: { N: '3' } } } },
+    hint: '数値も <code>{"N":"3"}</code> と<strong>文字列で包みます</strong>。<code>$string()</code> を使います。',
+    solution: '{ "PutRequest": { "Item": { "id": {"S": $states.input.id}, "service": {"S": $states.input.service}, "answer": {"S": $states.input.answer}, "difficulty": {"N": $string($states.input.difficulty)} } } }',
+    explanation: 'DynamoDB の AttributeValue 形式（<code>{"S":..}</code> / <code>{"N":..}</code>）は、最適化統合でも自動では付きません。数値型 <code>N</code> も値は文字列なので <code>$string()</code> で変換します。Distributed Map の BatchSize=25 で 25件チャンクにまとめ、UnprocessedItems の再投入も設計します。'
+  },
+  {
+    id: 48, level: 10, category: '直接統合：結果を組み立てる',
+    title: 'reCAPTCHA verify の body を組む',
+    desc: 'Google reCAPTCHA の検証 API は <code>application/x-www-form-urlencoded</code> です。secret（変数 <code>$secret</code> に束縛済み）とトークンから、フォーム形式の body 文字列を組み立ててください。',
+    input: { token: 'TOKEN_ABC' },
+    bindings: { secret: 'SECRET123' },
+    expected: 'secret=SECRET123&response=TOKEN_ABC',
+    hint: 'JSON ではなく <code>キー=値&キー=値</code> の文字列を <code>&</code> 連結で作ります。',
+    solution: '"secret=" & $secret & "&response=" & $states.input.token',
+    explanation: 'Google API は form-urlencoded を要求します（JSON 不可）。secret は Connection の認証ヘッダではなく body に乗るため、Assign で <code>$secret</code> に束縛しておき、ここで文字列連結します。HTTP Task の Content-Type も合わせます。',
+    notes: '変数 <code>$secret = "SECRET123"</code> がバインドされています:'
+  },
+  {
+    id: 49, level: 10, category: '直接統合：結果を組み立てる',
+    title: 'スコアで通過/拒否を判定する',
+    desc: 'reCAPTCHA の応答 <code>$states.result</code> からスコアを取り出し、閾値 0.5 で <code>"reject"</code> / <code>"accept"</code> を返してください。この戻り値を後続の Choice の入力にします。',
+    input: {},
+    bindings: { result: { ResponseBody: { score: 0.42 } } },
+    expected: 'reject',
+    hint: '三項演算子 <code>条件 ? A : B</code>。閾値未満なら reject です。',
+    solution: '$states.result.ResponseBody.score < 0.5 ? "reject" : "accept"',
+    explanation: 'JSONata の三項で分岐ラベルを作り、Choice ステートがそのラベルで遷移先を選びます。Lambda の <code>if score < 0.5: return 403</code> を、判定（JSONata）と分岐（Choice）に分けた形です。',
+    notes: '<code>$states.result</code> に reCAPTCHA の応答がバインドされています:'
+  },
+  {
+    id: 50, level: 10, category: '直接統合：結果を組み立てる',
+    title: '終了コードで成否を分岐する',
+    desc: 'Fargate タスク完了後の <code>$states.result</code> から、コンテナの終了コードを見て <code>"ok"</code> / <code>"fail"</code> を返してください。',
+    input: {},
+    bindings: { result: { Containers: [ { ExitCode: 0 } ] } },
+    expected: 'ok',
+    hint: 'コンテナは配列。<code>Containers[0].ExitCode</code> を <code>= 0</code> と比較します。',
+    solution: '$states.result.Containers[0].ExitCode = 0 ? "ok" : "fail"',
+    explanation: 'JSONata の等価比較は <code>=</code> です（<code>==</code> ではありません）。<code>ecs:runTask.sync</code> の結果に含まれる終了コードで成否を判定し、Choice で次の処理へ振り分けます。',
+    notes: '<code>$states.result</code> に ECS タスクの結果がバインドされています:'
   }
 ];
 
