@@ -576,6 +576,15 @@
   }
   .result.ok .result-head-icon { background: var(--ok); color: #0a1408; }
   .result.err .result-head-icon { background: var(--err); color: #1a0808; }
+  .result-body.sfn-warn {
+    margin: 10px 18px 16px;
+    padding: 10px 12px;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    line-height: 1.7;
+  }
+  .result-body.sfn-warn strong { color: var(--accent-dim); }
   .result-body {
     padding: 0 18px 18px;
     font-family: var(--mono);
@@ -990,7 +999,7 @@
       <span class="brand-tag">for AWS Step Functions</span>
     </a>
     <div class="top-actions">
-      <span class="top-progress" id="topProgress"><strong>0</strong> / 25</span>
+      <span class="top-progress" id="topProgress"><strong>0</strong> / 50</span>
       <button class="btn-ghost" id="themeToggle" onclick="toggleTheme()" title="テーマ切り替え" aria-label="テーマ切り替え">🌙</button>
       <button class="btn-ghost" onclick="toggleCheatsheet()">📖 チートシート</button>
       <button class="btn-ghost" onclick="resetProgress()">リセット</button>
@@ -1000,7 +1009,7 @@
 
 <div class="mobile-bar">
   <button class="mobile-menu-btn" onclick="toggleSidebar()">≡ 問題一覧</button>
-  <span class="mobile-current" id="mobileCurrent">— / 25</span>
+  <span class="mobile-current" id="mobileCurrent">— / 50</span>
 </div>
 
 <div class="layout">
@@ -2035,6 +2044,32 @@ function saveExpr(pid, val) {
 // =============================================================
 //  Run / Validate
 // =============================================================
+// 同梱のブラウザ版 JSONata は受け付けるが、本番 Step Functions の
+// JSONata エンジンが未対応の構文を検出する（チートシート「⛔本番では使えない」と同集合）。
+// 正誤判定はブロックせず、注意喚起のバナーだけ出す。
+const SFN_UNSUPPORTED = [
+  { re: /\$eval\s*\(/,   label: '$eval()' },
+  { re: /\$now\s*\(/,    label: '$now()' },
+  { re: /\$millis\s*\(/, label: '$millis()' },
+  { re: /\$random\s*\(/, label: '$random()' },
+  { re: /\?\?/,          label: '?? (null合体)' },
+  { re: /\?\s*:/,        label: '?: (Elvis)' }, // 三項 `a ? b : c` は b があるため非該当
+];
+function lintSFnUnsupported(expr) {
+  // 文字列リテラル内の "?:" 等を誤検出しないよう、先に "" / '' を潰す
+  const stripped = expr.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
+  return SFN_UNSUPPORTED.filter(d => d.re.test(stripped)).map(d => d.label);
+}
+function sfnWarnBannerHTML(expr) {
+  const hits = lintSFnUnsupported(expr);
+  if (!hits.length) return '';
+  return `<div class="result-body sfn-warn">
+    <strong>⚠ 本番 Step Functions では未対応:</strong>
+    ${hits.map(escapeHTML).map(s => `<code>${s}</code>`).join(' ')}
+    — 道場（ブラウザ版 JSONata）では動きますが本番では落ちます。<code>$exists(x) ? x : 既定値</code> などに置き換えてください。
+  </div>`;
+}
+
 async function runCurrent() {
   const p = PROBLEMS[state.current];
   const expr = document.getElementById('editor').value.trim();
@@ -2076,6 +2111,7 @@ async function runCurrent() {
     // 入力は $states.input 経由でのみ参照でき、裸の `orderId` は本番同様 undefined になる。
     const actual = await compiled.evaluate(undefined, bindings);
     const passed = grade(actual, p);
+    const sfnWarn = sfnWarnBannerHTML(expr);
 
     if (passed) {
       state.status[p.id] = 'done';
@@ -2084,7 +2120,8 @@ async function runCurrent() {
       resultEl.className = 'result show ok';
       resultEl.innerHTML = `
         <div class="result-head"><span class="result-head-icon">✓</span>正解 — お見事</div>
-        <div class="result-body">${highlightJSON(fmtJSON(actual))}</div>`;
+        <div class="result-body">${highlightJSON(fmtJSON(actual))}</div>
+        ${sfnWarn}`;
     } else {
       if (state.status[p.id] !== 'done') state.status[p.id] = 'attempted';
       saveState();
@@ -2108,7 +2145,8 @@ async function runCurrent() {
               <div class="diff-col-body">${highlightJSON(fmtJSON(p.expected))}</div>
             </div>
           </div>
-        </div>`;
+        </div>
+        ${sfnWarn}`;
     }
   } catch (err) {
     state.status[p.id] = 'attempted';

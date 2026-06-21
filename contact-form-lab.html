@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab カード プレビュー — Replace Lambda #6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf7f1; --surface:#ffffff; --surface-2:#f4f0e8; --surface-3:#ece7db;
+    --border:#e3ddd0; --text:#221f1a; --text-dim:#5e584e; --text-mute:#938b7c;
+    --accent:#bd7d1c; --ok:#4f8a3f; --err:#c0392b;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --sans:'IBM Plex Sans JP',system-ui,sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;
+       padding:48px 20px;display:flex;justify-content:center}
+
+  .lab-card{width:100%;max-width:880px;background:var(--surface);border:1px solid var(--border);
+            border-radius:14px;overflow:hidden}
+
+  /* ---- header ---- */
+  .lab-head{padding:28px 32px 24px;border-bottom:1px solid var(--border);
+            background:linear-gradient(180deg,var(--surface-2),var(--surface))}
+  .badge{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.08em;
+         color:var(--accent);border:1px solid var(--accent);border-radius:999px;
+         padding:3px 12px;margin-bottom:14px}
+  .lab-head h1{font-family:var(--serif);font-weight:600;font-size:30px;margin:0 0 6px}
+  .lab-head h1 em{font-style:italic;color:var(--accent)}
+  .lab-head p{margin:0;color:var(--text-dim);font-size:15px}
+
+  /* ---- tabs ---- */
+  .tabs{display:flex;gap:6px;padding:18px 32px 0}
+  .tab{font-family:var(--mono);font-size:13px;color:var(--text-dim);background:transparent;
+       border:1px solid var(--border);border-bottom:none;border-radius:9px 9px 0 0;
+       padding:10px 18px;cursor:pointer;transition:.15s}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:#2a1f08;background:var(--accent);border-color:var(--accent);font-weight:600}
+  .panwrap{padding:0 32px;border-top:1px solid var(--border);margin-top:-1px}
+  .panel{display:none;padding:26px 0}
+  .panel.active{display:block}
+  .panel-cap{font-family:var(--mono);font-size:12px;color:var(--text-mute);margin:0 0 16px}
+
+  /* ---- code block ---- */
+  .code{font-family:var(--mono);font-size:12.5px;line-height:1.7;background:#f5f1e9;
+        border:1px solid var(--border);border-radius:9px;padding:16px 18px;overflow-x:auto;
+        white-space:pre;margin:0 0 22px;color:#33302a}
+  .code .mk{color:var(--accent);font-weight:600}
+  .code .s{color:#3f7d3a}   /* 文字列 */
+  .code .k{color:#3f5fb0}   /* キーワード */
+  .code .p{color:#9148a8}   /* JSON キー */
+  .code .j{color:#0f8a80;font-weight:500}   /* JSONata {% %} */
+  .code .n{color:#b5651d}   /* 数値・真偽 */
+  .sub-cap{font-family:var(--mono);font-size:11px;color:var(--text-mute);margin:0 0 12px;
+           padding-top:4px;border-top:1px dashed var(--border)}
+
+  /* ---- flow diagram ---- */
+  .flow{display:flex;flex-direction:column;align-items:center;gap:0}
+  .node{font-family:var(--mono);font-size:13px;background:var(--surface-2);border:1px solid var(--border);
+        border-radius:9px;padding:11px 18px;text-align:center;min-width:230px}
+  .node .sub{display:block;color:var(--text-mute);font-size:11px;margin-top:3px}
+  .arrow{color:var(--text-mute);font-size:15px;line-height:1.6;padding:3px 0}
+  .arrow.direct{color:var(--accent);font-weight:600}
+  .arrow.direct small{font-family:var(--mono);font-size:10px;display:block}
+
+  .box{border:1px solid var(--border);border-radius:11px;background:var(--surface-2);
+       padding:14px;min-width:340px;width:100%;max-width:460px}
+  .box.lambda{border-color:#c3bcd0}
+  .box.sfn{border-color:var(--accent)}
+  .box-title{font-family:var(--mono);font-size:12px;letter-spacing:.05em;margin-bottom:10px;
+             padding-bottom:8px;border-bottom:1px dashed var(--border);color:var(--text-dim)}
+  .box.sfn .box-title{color:var(--accent)}
+  .step{font-family:var(--mono);font-size:12.5px;padding:7px 10px;border-radius:7px;
+        background:var(--surface);margin:5px 0;display:flex;justify-content:space-between;gap:10px}
+  .step .to{color:var(--accent);white-space:nowrap}
+  .group{border:1px dashed var(--border);border-radius:8px;padding:6px 8px;margin:5px 0}
+  .group-label{font-family:var(--mono);font-size:10.5px;color:var(--text-mute);margin:2px 2px 5px}
+  .note{font-family:var(--mono);font-size:11px;color:var(--text-mute);margin-top:12px;text-align:center}
+  .note.win{color:var(--ok)}
+
+  /* ---- mapping table ---- */
+  .map{padding:24px 32px;border-top:1px solid var(--border)}
+  .map h3{font-family:var(--serif);font-size:19px;font-weight:600;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;color:var(--text-mute);letter-spacing:.05em;font-weight:500}
+  td code,.step code{font-family:var(--mono)}
+  td:nth-child(2){color:var(--accent);text-align:center;width:34px}
+  .tag{font-family:var(--mono);font-size:11px;color:var(--text-dim)}
+  .ledger{display:flex;gap:14px;margin-top:16px;flex-wrap:wrap}
+  .ledger div{flex:1;min-width:220px;border:1px solid var(--border);border-radius:9px;padding:12px 14px;font-size:13px}
+  .ledger .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.05em;margin-bottom:6px}
+  .ledger .gone .lbl{color:var(--err)} .ledger .got .lbl{color:var(--ok)}
+
+  /* ---- deploy / footer ---- */
+  .deploy{padding:24px 32px;border-top:1px solid var(--border);background:var(--surface-2)}
+  .launch{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:#1a1205;
+          font-family:var(--mono);font-weight:600;font-size:14px;text-decoration:none;
+          padding:11px 20px;border-radius:9px;transition:.15s}
+  .launch:hover{filter:brightness(1.08)}
+  .launch span{font-size:16px}
+  .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:20px}
+  .meta div{font-size:12.5px;color:var(--text-dim)}
+  .meta .k{font-family:var(--mono);font-size:11px;color:var(--text-mute);margin-bottom:4px}
+  .meta .warn{color:var(--accent)}
+  .drill{margin-top:18px;font-size:13px}
+  .drill a{color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:12.5px;
+           border:1px solid var(--border);border-radius:7px;padding:3px 9px;margin-right:6px;display:inline-block}
+  .drill a:hover{border-color:var(--accent)}
+  a.src{color:var(--text-mute);font-family:var(--mono);font-size:12px}
+</style>
+</head>
+<body>
+<article class="lab-card">
+
+  <header class="lab-head">
+    <span class="badge">REPLACE LAMBDA #6 · LAB</span>
+    <h1>お問い合わせフォームを <em>Lambda ゼロ</em> で</h1>
+    <p>フォーム送信 → 保存 + 運営通知。その関数、Step Functions の直接統合だけで書けます。</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="before">Before — Lambda</button>
+    <button class="tab" data-tab="after">After — Step Functions</button>
+  </nav>
+
+  <div class="panwrap">
+    <!-- BEFORE -->
+    <section class="panel active" id="before">
+      <p class="panel-cap">// あなたが書いた Lambda — handler.py（抜粋・約20行）</p>
+<pre class="code"><span class="k">import</span> json, uuid, boto3
+ddb = boto3.client(<span class="s">'dynamodb'</span>); ses = boto3.client(<span class="s">'ses'</span>)
+
+<span class="k">def</span> handler(event, context):
+    form = json.loads(event[<span class="s">'body'</span>])                      <span class="mk"># ①</span>
+    <span class="k">if not</span> form.get(<span class="s">'name'</span>) <span class="k">or</span> <span class="s">'@'</span> <span class="k">not in</span> form[<span class="s">'email'</span>]:  <span class="mk"># ②</span>
+        <span class="k">return</span> {<span class="s">'statusCode'</span>: <span class="n">403</span>, <span class="s">'body'</span>: <span class="s">'{"ok":false}'</span>}
+    ddb.put_item(TableName=<span class="s">'inquiries'</span>, Item={             <span class="mk"># ③</span>
+        <span class="s">'id'</span>:      {<span class="s">'S'</span>: str(uuid.uuid4())},
+        <span class="s">'name'</span>:    {<span class="s">'S'</span>: form[<span class="s">'name'</span>]},
+        <span class="s">'email'</span>:   {<span class="s">'S'</span>: form[<span class="s">'email'</span>]},
+        <span class="s">'message'</span>: {<span class="s">'S'</span>: form[<span class="s">'message'</span>]},
+    })
+    ses.send_email(Source=FROM,                           <span class="mk"># ④</span>
+        Destination={<span class="s">'ToAddresses'</span>: [ADMIN]},
+        Message={<span class="s">'Subject'</span>: {<span class="s">'Data'</span>: <span class="s">'新しいお問い合わせ: '</span> + form[<span class="s">'name'</span>]},
+                 <span class="s">'Body'</span>:    {<span class="s">'Text'</span>:    {<span class="s">'Data'</span>: form[<span class="s">'message'</span>]}}})
+    <span class="k">return</span> {<span class="s">'statusCode'</span>: <span class="n">200</span>, <span class="s">'body'</span>: <span class="s">'{"ok":true}'</span>}      <span class="mk"># ⑤</span></pre>
+      <p class="sub-cap">// 構成図 — 全部1関数の中で順番に実行</p>
+      <div class="flow">
+        <div class="node">ブラウザ<span class="sub">POST {name, email, message}</span></div>
+        <div class="arrow">▼</div>
+        <div class="node">API Gateway</div>
+        <div class="arrow">▼</div>
+        <div class="box lambda">
+          <div class="box-title">λ Lambda (handler)</div>
+          <div class="step"><span>① form = json.loads(body)</span></div>
+          <div class="step"><span>② if not valid(form): return 403</span></div>
+          <div class="step"><span>③ ddb.put_item(...)</span><span class="to">→ DynamoDB</span></div>
+          <div class="step"><span>④ ses.send_email(...)</span><span class="to">→ SES</span></div>
+          <div class="step"><span>⑤ return {ok: true}</span></div>
+        </div>
+        <div class="note">③④ は順番に実行（I/O 待ちが積み上がる）</div>
+      </div>
+    </section>
+
+    <!-- AFTER -->
+    <section class="panel" id="after">
+      <p class="panel-cap">// 置き換えた ASL — state machine（抜粋・JSONata）</p>
+<pre class="code">{
+  <span class="p">"QueryLanguage"</span>: <span class="s">"JSONata"</span>,                       <span class="mk">// ① body parse 不要（API GW が Input に渡す）</span>
+  <span class="p">"StartAt"</span>: <span class="s">"Validate"</span>,
+  <span class="p">"States"</span>: {
+    <span class="p">"Validate"</span>: {                                    <span class="mk">// ②</span>
+      <span class="p">"Type"</span>: <span class="s">"Choice"</span>,
+      <span class="p">"Choices"</span>: [{ <span class="p">"Next"</span>: <span class="s">"Persist"</span>, <span class="p">"Condition"</span>:
+        <span class="j">"{% $exists($states.input.name) and $contains($states.input.email,'@') %}"</span> }],
+      <span class="p">"Default"</span>: <span class="s">"Invalid"</span>
+    },
+    <span class="p">"Persist"</span>: {                                     <span class="mk">// ③④  Parallel で同時実行</span>
+      <span class="p">"Type"</span>: <span class="s">"Parallel"</span>,
+      <span class="p">"Branches"</span>: [
+        { <span class="p">"StartAt"</span>: <span class="s">"PutItem"</span>, <span class="p">"States"</span>: { <span class="p">"PutItem"</span>: {        <span class="mk">// ③</span>
+          <span class="p">"Type"</span>: <span class="s">"Task"</span>, <span class="p">"Resource"</span>: <span class="s">"...:dynamodb:putItem"</span>,
+          <span class="p">"Arguments"</span>: { <span class="p">"TableName"</span>: <span class="s">"..."</span>, <span class="p">"Item"</span>: {
+            <span class="p">"id"</span>:   { <span class="p">"S"</span>: <span class="j">"{% $uuid() %}"</span> },
+            <span class="p">"name"</span>: { <span class="p">"S"</span>: <span class="j">"{% $states.input.name %}"</span> } } }, <span class="p">"End"</span>: <span class="n">true</span> }}},
+        { <span class="p">"StartAt"</span>: <span class="s">"SendEmail"</span>, <span class="p">"States"</span>: { <span class="p">"SendEmail"</span>: {    <span class="mk">// ④</span>
+          <span class="p">"Type"</span>: <span class="s">"Task"</span>, <span class="p">"Resource"</span>: <span class="s">"...:aws-sdk:ses:sendEmail"</span>,
+          <span class="p">"Arguments"</span>: { <span class="p">"Source"</span>: <span class="s">"..."</span>, <span class="p">"Destination"</span>: { <span class="p">"ToAddresses"</span>: [<span class="s">"..."</span>] },
+            <span class="p">"Message"</span>: { <span class="p">"Subject"</span>: { <span class="p">"Data"</span>:
+              <span class="j">"{% '新しいお問い合わせ: ' &amp; $states.input.name %}"</span> } } }, <span class="p">"End"</span>: <span class="n">true</span> }}}
+      ],
+      <span class="p">"Next"</span>: <span class="s">"Respond"</span>
+    },
+    <span class="p">"Respond"</span>: { <span class="p">"Type"</span>: <span class="s">"Pass"</span>, <span class="p">"Output"</span>: { <span class="p">"ok"</span>: <span class="n">true</span> }, <span class="p">"End"</span>: <span class="n">true</span> }   <span class="mk">// ⑤</span>
+  }
+}</pre>
+      <p class="sub-cap">// 構成図 — Lambda ゼロ・直接統合</p>
+      <div class="flow">
+        <div class="node">ブラウザ<span class="sub">POST {name, email, message}</span></div>
+        <div class="arrow direct">║ 直接統合 <small>StartSyncExecution</small></div>
+        <div class="node">API Gateway <span class="sub">HTTP API · Input = $request.body</span></div>
+        <div class="arrow">▼</div>
+        <div class="box sfn">
+          <div class="box-title">⚡ Step Functions (Express · JSONata)</div>
+          <div class="step"><span>② Validate</span><span class="to">Choice</span></div>
+          <div class="group">
+            <div class="group-label">③④ Persist — Parallel（同時実行）</div>
+            <div class="step"><span>PutItem</span><span class="to">→ DynamoDB</span></div>
+            <div class="step"><span>SendEmail</span><span class="to">→ SES</span></div>
+          </div>
+          <div class="step"><span>⑤ Respond</span><span class="to">{ok:true}</span></div>
+        </div>
+        <div class="note win">① body parse は API GW→SFN が肩代わり（コードごと消滅）</div>
+        <div class="note win">③④ は Parallel で同時（Lambda は順番だった）</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- MAPPING -->
+  <section class="map">
+    <h3>行ごとの対応 — <em>このLambda</em> が <em>このステート</em> に</h3>
+    <table>
+      <thead><tr><th>Lambda の行</th><th></th><th>SFn のステート</th><th>備考</th></tr></thead>
+      <tbody>
+        <tr><td><code>json.loads(body)</code></td><td>→</td><td>（なし）</td><td class="tag">API GW が body を Input に渡す＝コードごと消滅</td></tr>
+        <tr><td><code>validate(form)</code></td><td>→</td><td><b>Validate</b>（Choice）</td><td class="tag">$exists / $contains で条件分岐</td></tr>
+        <tr><td><code>ddb.put_item</code></td><td>→</td><td><b>Persist › PutItem</b></td><td class="tag">dynamodb:putItem 直接統合</td></tr>
+        <tr><td><code>ses.send_email</code></td><td>→</td><td><b>Persist › SendEmail</b></td><td class="tag">ses:sendEmail 直接統合</td></tr>
+        <tr><td>③④ を順番に</td><td>→</td><td><b>Parallel で同時</b></td><td class="tag">SFn 化で得した所</td></tr>
+        <tr><td><code>return {ok:true}</code></td><td>→</td><td><b>Respond</b></td><td class="tag">Output に {ok:true}</td></tr>
+      </tbody>
+    </table>
+    <div class="ledger">
+      <div class="gone"><div class="lbl">▼ 消えたもの</div>Lambda 関数 · ランタイム · <code>json.loads</code>（①）</div>
+      <div class="got"><div class="lbl">▲ 得たもの</div>各ステップが可視化 · ステートごとに Retry/Catch · ③④ の並列化</div>
+    </div>
+  </section>
+
+  <!-- DEPLOY -->
+  <section class="deploy">
+    <a class="launch" href="https://ap-northeast-1.console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/quickcreate?stackName=contact-form-demo&templateURL=https%3A%2F%2Fstepfunctions-dojo2026.s3.ap-northeast-1.amazonaws.com%2Ftemplates%2Fcontact-form.yaml" target="_blank" rel="noopener">
+      <span>⛏</span> Launch Stack — 自分の AWS で動かす
+    </a>
+    <div class="meta">
+      <div><div class="k warn">⚠ 前提条件</div>SES（ap-northeast-1）で送信元 / 通知先メールを<b>事前検証</b>。未検証だと SendEmail が失敗します。</div>
+      <div><div class="k">概算コスト</div>Express + HTTP API + DynamoDB（オンデマンド）。低トラフィックでは実質ほぼ無料。</div>
+      <div><div class="k">後片付け</div>スタックを削除すれば全リソース消去（DynamoDB の保存データも消えます）。</div>
+    </div>
+    <div class="drill">
+      <div class="k" style="font-family:var(--mono);font-size:11px;color:var(--text-mute);margin-bottom:7px">道場で手を動かす（この回の JSONata）</div>
+      <a href="#">Lv9-3 文字列連結</a><a href="#">Lv10-2 DDB 型付き</a>
+      <span class="tag">＋ $exists/$contains 検証・$uuid 採番は追加予定</span>
+    </div>
+    <p style="margin:18px 0 0"><a class="src" href="templates/contact-form.yaml" target="_blank">⧉ テンプレート全文を見る（contact-form.yaml）</a></p>
+  </section>
+
+</article>
+
+<script>
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
+      document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
+      t.classList.add('active');
+      document.getElementById(t.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

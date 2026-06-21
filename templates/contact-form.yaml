@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Replace Lambda #6 - お問い合わせフォーム（Lambda ゼロ）.
+  HTTP API (StartSyncExecution 直接統合) -> Step Functions Express (JSONata)
+  -> Parallel[ DynamoDB PutItem | SES SendEmail ]. 道場 Lab 用サンプル.
+
+Parameters:
+  FromEmail:
+    Type: String
+    Description: 送信元メールアドレス（SES で検証済みであること）
+  AdminEmail:
+    Type: String
+    Description: 通知先（運営）メール。SES サンドボックスでは検証済みである必要あり
+
+Resources:
+
+  # ---- データ保存先 ------------------------------------------------------
+  InquiriesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # ---- ステートマシン用ロール（DDB と SES を呼ぶ） ----------------------
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: states.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: contact-form-sfn
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt InquiriesTable.Arn
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: '*'
+
+  # ---- ステートマシン（Express / JSONata） -----------------------------
+  ContactStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineType: EXPRESS
+      RoleArn: !GetAtt StateMachineRole.Arn
+      # 注: JSONata の $states / $uuid は ${} ではないため Fn::Sub の置換対象にならない。
+      #     ${InquiriesTable} / ${FromEmail} / ${AdminEmail} だけが置換される。
+      DefinitionString: !Sub |
+        {
+          "QueryLanguage": "JSONata",
+          "StartAt": "Validate",
+          "States": {
+            "Validate": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Condition": "{% $exists($states.input.name) and $exists($states.input.message) and $contains($states.input.email, '@') %}",
+                  "Next": "Persist"
+                }
+              ],
+              "Default": "Invalid"
+            },
+            "Invalid": {
+              "Type": "Pass",
+              "Output": { "ok": false, "error": "invalid input" },
+              "End": true
+            },
+            "Persist": {
+              "Type": "Parallel",
+              "Branches": [
+                {
+                  "StartAt": "PutItem",
+                  "States": {
+                    "PutItem": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::dynamodb:putItem",
+                      "Arguments": {
+                        "TableName": "${InquiriesTable}",
+                        "Item": {
+                          "id": { "S": "{% $uuid() %}" },
+                          "name": { "S": "{% $states.input.name %}" },
+                          "email": { "S": "{% $states.input.email %}" },
+                          "message": { "S": "{% $states.input.message %}" }
+                        }
+                      },
+                      "End": true
+                    }
+                  }
+                },
+                {
+                  "StartAt": "SendEmail",
+                  "States": {
+                    "SendEmail": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::aws-sdk:ses:sendEmail",
+                      "Arguments": {
+                        "Source": "${FromEmail}",
+                        "Destination": { "ToAddresses": ["${AdminEmail}"] },
+                        "Message": {
+                          "Subject": { "Data": "{% '新しいお問い合わせ: ' & $states.input.name %}" },
+                          "Body": { "Text": { "Data": "{% $states.input.message %}" } }
+                        }
+                      },
+                      "End": true
+                    }
+                  }
+                }
+              ],
+              "Next": "Respond"
+            },
+            "Respond": {
+              "Type": "Pass",
+              "Output": { "ok": true },
+              "End": true
+            }
+          }
+        }
+
+  # ---- API Gateway -> Step Functions を呼ぶロール ----------------------
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: apigateway.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: contact-form-api
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: states:StartSyncExecution
+                Resource: !Ref ContactStateMachine
+
+  # ---- HTTP API ---------------------------------------------------------
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: contact-form-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowMethods: ['POST']
+        AllowHeaders: ['content-type']
+
+  ContactIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationSubtype: StepFunctions-StartSyncExecution
+      PayloadFormatVersion: '1.0'
+      CredentialsArn: !GetAtt ApiRole.Arn
+      RequestParameters:
+        StateMachineArn: !Ref ContactStateMachine
+        Input: $request.body
+
+  ContactRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /contact'
+      Target: !Sub 'integrations/${ContactIntegration}'
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+
+Outputs:
+  ContactEndpoint:
+    Description: フォーム送信先（POST）
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/contact'
+  TableName:
+    Description: 問い合わせ保存先テーブル
+    Value: !Ref InquiriesTable
