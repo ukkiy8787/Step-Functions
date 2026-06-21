@@ -1075,19 +1075,31 @@
           <tr><td class="ck">配列</td><td><code>$map</code> <code>$filter</code> <code>$reduce</code> <code>$sort</code> <code>$distinct</code> <code>$reverse</code> <code>$append</code> <code>$join</code> <code>$split</code></td></tr>
           <tr><td class="ck">オブジェクト</td><td><code>$keys</code> <code>$lookup</code> <code>$merge</code> <code>$spread</code> <code>$each</code></td></tr>
           <tr><td class="ck">文字列</td><td><code>$lowercase</code> <code>$uppercase</code> <code>$trim</code> <code>$substring</code> <code>$substringBefore/After</code> <code>$replace</code> <code>$contains</code> <code>$string</code></td></tr>
-          <tr><td class="ck">数値・日時</td><td><code>$number</code> <code>$round</code> <code>$floor</code> <code>$formatNumber</code> <code>$fromMillis</code> <code>$toMillis</code></td></tr>
+          <tr><td class="ck">数値・日時</td><td><code>$number</code> <code>$round</code> <code>$floor</code> <code>$formatNumber</code> <code>$fromMillis</code> <code>$toMillis</code> <code>$now</code> <code>$millis</code></td></tr>
           <tr><td class="ck">存在判定</td><td><code>$exists</code> <code>$type</code> <code>$not</code></td></tr>
           <tr><td class="ck">高階関数</td><td><code>function($x){ … }</code> を第2引数に渡す（例 <code>$map(a, function($n){ $n*$n })</code>）</td></tr>
-          <tr><td class="ck cs">SFn 独自</td><td><code>$parse</code> — JSON 文字列をオブジェクトに変換（Lambda の文字列ペイロード等）</td></tr>
+        </table>
+      </section>
+
+      <section class="cheat-sec">
+        <h3>SFn 独自関数 — 旧 intrinsic の代替</h3>
+        <p class="cheat-note">標準 JSONata に Step Functions が追加した関数。JSONPath 時代の組み込み関数（intrinsics）の置き換え。</p>
+        <table class="cheat-tbl">
+          <tr><td class="ck cs"><code>$parse</code></td><td>JSON 文字列を値に復元（= <code>States.StringToJson</code>／<code>$eval</code> の代替）</td></tr>
+          <tr><td class="ck cs"><code>$partition</code></td><td>配列を指定サイズで分割（= <code>States.ArrayPartition</code>）</td></tr>
+          <tr><td class="ck cs"><code>$range</code></td><td>連番の配列を生成（= <code>States.ArrayRange</code>）</td></tr>
+          <tr><td class="ck cs"><code>$hash</code></td><td>ハッシュ計算 MD5/SHA（= <code>States.Hash</code>）</td></tr>
+          <tr><td class="ck cs"><code>$random</code></td><td>乱数。<code>seed</code> 引数つき（= <code>States.MathRandom</code>）</td></tr>
+          <tr><td class="ck cs"><code>$uuid</code></td><td>v4 UUID を生成（= <code>States.UUID</code>）</td></tr>
         </table>
       </section>
 
       <section class="cheat-sec cheat-warn">
         <h3>⛔ 本番 Step Functions では使えない</h3>
-        <p class="cheat-note">標準 JSONata にはあるが、SFn のエンジンは未対応。道場では動いても本番で落ちる。</p>
+        <p class="cheat-note">標準 JSONata にはあるが、SFn のエンジン（仕様 2.0.6 準拠）は未対応。道場では動いても本番で落ちる。</p>
         <table class="cheat-tbl">
-          <tr><td class="ck"><code>$eval</code> <code>$now</code> <code>$millis</code> <code>$random</code></td><td>これらの関数は使えない</td></tr>
-          <tr><td class="ck"><code>??</code> <code>?:</code></td><td>null合体 / Elvis 演算子は未対応 → 代わりに <code>$exists(x) ? x : 既定値</code></td></tr>
+          <tr><td class="ck"><code>$eval</code></td><td>JSON 文字列の評価は使えない → 代わりに <code>$parse</code></td></tr>
+          <tr><td class="ck"><code>??</code> <code>?:</code></td><td>null合体 / Elvis 演算子は 2.1.0 追加のため未対応 → 代わりに <code>$exists(x) ? x : 既定値</code></td></tr>
         </table>
       </section>
 
@@ -2047,11 +2059,10 @@ function saveExpr(pid, val) {
 // 同梱のブラウザ版 JSONata は受け付けるが、本番 Step Functions の
 // JSONata エンジンが未対応の構文を検出する（チートシート「⛔本番では使えない」と同集合）。
 // 正誤判定はブロックせず、注意喚起のバナーだけ出す。
+// SFn は JSONata 2.0.6 準拠で「全関数を $eval 以外サポート」。$now/$millis/$random は
+// 使える（$random は seed 付きで SFn 提供）ので非対応扱いしない。?? / ?: は 2.1.0 追加で未対応。
 const SFN_UNSUPPORTED = [
   { re: /\$eval\s*\(/,   label: '$eval()' },
-  { re: /\$now\s*\(/,    label: '$now()' },
-  { re: /\$millis\s*\(/, label: '$millis()' },
-  { re: /\$random\s*\(/, label: '$random()' },
   { re: /\?\?/,          label: '?? (null合体)' },
   { re: /\?\s*:/,        label: '?: (Elvis)' }, // 三項 `a ? b : c` は b があるため非該当
 ];
