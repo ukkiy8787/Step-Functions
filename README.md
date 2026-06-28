@@ -57,10 +57,10 @@ JSONata 式だけをドリルで鍛える単一 HTML アプリ。**全 50 問 / 
 | 2 | 変換 | 文字列連結・オブジェクト構築・三項・正規化 |
 | 3 | 集計・並べ替え | `$sum`/`$count`・フィルタ集計・ソート `^()`・`$distinct` |
 | 4 | 関数を使いこなす | 日時変換・`$merge`・`$keys`・`$exists` + デフォルト値 |
-| 5 | Step Functions 実践 | `$states.result`・`$parse`・Variables・ネスト集計 |
+| 5 | Step Functions 実践① | `$states.result`・`$parse`・Variables・ネスト集計 |
 | 6 | 高階関数 | `$map`/`$filter`/`$reduce`/`$sort`・グルーピング |
 | 7 | 文字列・数値・日時 | `$split`/`$replace`/`$substringAfter`/`$formatNumber`/`$fromMillis` |
-| 8 | Step Functions 実戦 | Map 集計・Catch 整形・Assign 加算・body パース集計 |
+| 8 | Step Functions 実践② | Map 集計・Catch 整形・Assign 加算・body パース集計 |
 | 9 | 直接統合：入力を取り出す | API GW body / Pipes・SQS / Slack blocks / Bedrock / ECS（Lambda 置き換え） |
 | 10 | 直接統合：結果を組み立てる | Bedrock 応答 / DynamoDB 型付き形式 / reCAPTCHA / 終了コード分岐 |
 

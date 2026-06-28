@@ -13,15 +13,15 @@
     } catch (e) { /* ignore */ }
   })();
 </script>
-<title>JSONata ノック道場 — Step Functions の JSONata を40本で身につける</title>
-<meta name="description" content="AWS Step Functions の JSONata を、手を動かして学ぶ40本のドリル。$states.input から $parse・高階関数・Map/Catch/Assign まで、Step Functions の文脈で実践的に習得。">
+<title>JSONata ノック道場 — Step Functions の JSONata を50本で身につける</title>
+<meta name="description" content="AWS Step Functions の JSONata を、手を動かして学ぶ50本のドリル。$states.input から $parse・高階関数・Map/Catch/Assign、さらに直接統合（Lambda置き換え）まで、Step Functions の文脈で実践的に習得。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="JSONata ノック道場 — Step Functions の JSONata を40本で身につける">
-<meta property="og:description" content="AWS Step Functions の JSONata を、手を動かして学ぶ40本のドリル。本番と同じ $states.input の制約で採点するから、道場で正解した式はそのまま実機で動く。">
+<meta property="og:title" content="JSONata ノック道場 — Step Functions の JSONata を50本で身につける">
+<meta property="og:description" content="AWS Step Functions の JSONata を、手を動かして学ぶ50本のドリル。本番と同じ $states.input の制約で採点するから、道場で正解した式はそのまま実機で動く。">
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="JSONata ノック道場 — for AWS Step Functions">
-<meta name="twitter:description" content="Step Functions の JSONata を40本のドリルで習得。本番互換の採点エンジン搭載。">
+<meta name="twitter:description" content="Step Functions の JSONata を50本のドリルで習得。本番互換の採点エンジン搭載。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='12'%20fill='%230d0d12'/%3E%3Ctext%20x='32'%20y='46'%20font-family='monospace'%20font-size='40'%20font-weight='bold'%20fill='%23e9a849'%20text-anchor='middle'%3E$%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1214,7 +1214,7 @@ const PROBLEMS = [
     ],
     hint: '配列に <code>.{ ... }</code> をつなげると、各要素のコンテキストでオブジェクトを構築できます。',
     solution: '$states.input.items.{ "product": product, "subtotal": qty * price }',
-    explanation: 'これが JSONata の真骨頂です。<code>items.{...}</code> の中では、各要素のフィールド（<code>product</code>, <code>qty</code> など）を直接参照できます。Lambda を呼ばずに済む場面が一気に増えます。'
+    explanation: 'これが JSONata の真骨頂です。<code>items.{...}</code> の中では、各要素のフィールド（<code>product</code>, <code>qty</code> など）を直接参照できます。Lambda を呼ばずに済む場面が一気に増えます。なお <code>.{...}</code> や射影は要素が <strong>1個だと結果が配列でなく単一値</strong>になります（JSONata の単値/配列の揺れ）。配列を保証したいときは <code>[ ... ]</code> で囲みます。'
   },
   {
     id: 9, level: 2, category: '変換',
@@ -1357,9 +1357,9 @@ const PROBLEMS = [
     explanation: '注意点: JSONata 2.1.0 で追加された <code>??</code>（null合体）や <code>?:</code>（Elvis）演算子は Step Functions の JSONata エンジンではサポートされていません。古典的な <code>$exists()</code> + 三項演算子の組み合わせが現状の正解です。'
   },
 
-  // ============ Lv.5 Step Functions 実践 ============
+  // ============ Lv.5 Step Functions 実践① ============
   {
-    id: 21, level: 5, category: 'Step Functions 実践',
+    id: 21, level: 5, category: 'Step Functions 実践①',
     title: 'Parallel の結果を統合',
     desc: '直前の Parallel ステートで2つのブランチが並列実行され、結果が <code>$states.result</code> に配列で入っています。これを単一のオブジェクトにマージしてください。',
     input: {},
@@ -1376,7 +1376,7 @@ const PROBLEMS = [
     notes: 'このステートでは <code>$states.result</code> が次の配列にバインドされています:'
   },
   {
-    id: 22, level: 5, category: 'Step Functions 実践',
+    id: 22, level: 5, category: 'Step Functions 実践①',
     title: 'JSON 文字列をパース',
     desc: 'Lambda から返ってきたペイロードが JSON 文字列のまま入っています。これをパースして <code>userId</code> を取り出してください。',
     input: { payload: '{"userId":42,"role":"admin","active":true}' },
@@ -1386,7 +1386,7 @@ const PROBLEMS = [
     explanation: '<code>$parse()</code> は AWS が Step Functions 向けに追加した独自関数で、JSON 文字列をパースしてオブジェクトに変換します。標準 JSONata の <code>$eval()</code> はサポートされていないので、文字列化された JSON を扱うときはこれ一択。'
   },
   {
-    id: 23, level: 5, category: 'Step Functions 実践',
+    id: 23, level: 5, category: 'Step Functions 実践①',
     title: '変数（Variables）を参照',
     desc: '直前のステートで Variables 機能により <code>$userId</code> という変数が <code>"user-42"</code> に設定されています。これと現在の入力を組み合わせて <code>{ "id": userId, "action": <input.action> }</code> を返してください。',
     input: { action: 'login' },
@@ -1398,7 +1398,7 @@ const PROBLEMS = [
     notes: 'バインドされている変数: <code>$userId = "user-42"</code>'
   },
   {
-    id: 24, level: 5, category: 'Step Functions 実践',
+    id: 24, level: 5, category: 'Step Functions 実践①',
     title: 'ネストした配列を集計',
     desc: '注文ごとに複数の商品行があります。<strong>全注文を通した</strong>総売上（数量×単価の総和）を返してください。',
     input: { orders: [
@@ -1412,7 +1412,7 @@ const PROBLEMS = [
     explanation: 'JSONata の <code>.</code> 連結はネストした配列を自動でフラット化します。<code>.( 式 )</code> で各要素のコンテキストで任意の式を評価できます。Lambda を立てずにここまで集計できます。'
   },
   {
-    id: 25, level: 5, category: 'Step Functions 実践',
+    id: 25, level: 5, category: 'Step Functions 実践①',
     title: '総合演習: 並列結果を構造化',
     desc: '直前の Parallel で、ブランチ1がユーザー情報、ブランチ2が注文履歴を返しています。これらを使って <code>{ "user": {ユーザー情報}, "orderCount": 件数, "totalSpend": 合計 }</code> を組み立ててください。',
     input: {},
@@ -1558,9 +1558,9 @@ const PROBLEMS = [
     explanation: '<code>$fromMillis</code> は第2引数のピクチャ文字列で出力書式を制御できます（XPath の日時フォーマット記法）。タイムゾーン指定が無ければ UTC。逆変換は <code>$toMillis</code> です。'
   },
 
-  // ============ Lv.8 Step Functions 実戦 ============
+  // ============ Lv.8 Step Functions 実践② ============
   {
-    id: 36, level: 8, category: 'Step Functions 実戦',
+    id: 36, level: 8, category: 'Step Functions 実践②',
     title: 'Map 結果を集計',
     desc: 'Map ステートで各注文を処理した結果が <code>$states.result</code> に配列で入っています。<code>amount</code> の合計を求めてください。',
     input: {},
@@ -1576,7 +1576,7 @@ const PROBLEMS = [
     notes: 'このステートでは <code>$states.result</code> が次の配列にバインドされています:'
   },
   {
-    id: 37, level: 8, category: 'Step Functions 実戦',
+    id: 37, level: 8, category: 'Step Functions 実践②',
     title: 'Catch のエラー整形',
     desc: 'Catch でタスクのエラーを受け取りました。エラー情報を <code>{ "code": エラー名, "reason": 原因 }</code> の形に整形してください。',
     input: { Error: 'States.TaskFailed', Cause: 'Lambda function timed out' },
@@ -1586,7 +1586,7 @@ const PROBLEMS = [
     explanation: '<code>Catch</code> でエラーを捕捉すると、後続ステートの入力（<code>$states.input</code>）に <code>Error</code>（エラー名）と <code>Cause</code>（詳細）が渡ります。これを整形して通知やログ用の形に変換するのが定番です。'
   },
   {
-    id: 38, level: 8, category: 'Step Functions 実戦',
+    id: 38, level: 8, category: 'Step Functions 実践②',
     title: '変数に加算（Assign）',
     desc: 'Assign で持ち回っている合計 <code>$total</code>（現在 1000）に、今回の入力 <code>amount</code> を足し込んでください。',
     input: { amount: 250 },
@@ -1598,7 +1598,7 @@ const PROBLEMS = [
     notes: 'バインドされている変数: <code>$total = 1000</code>'
   },
   {
-    id: 39, level: 8, category: 'Step Functions 実戦',
+    id: 39, level: 8, category: 'Step Functions 実践②',
     title: 'payload をパースして集計',
     desc: 'API Gateway 経由の Lambda 入力で、本体が JSON 文字列の <code>body</code> に入っています。パースして、全明細の <code>price × qty</code> の合計を求めてください。',
     input: { body: '{"items":[{"price":100,"qty":2},{"price":50,"qty":3}]}' },
@@ -1608,7 +1608,7 @@ const PROBLEMS = [
     explanation: '文字列化された JSON ペイロード（Lambda プロキシ統合で頻出）を <code>$parse</code> で展開し、そのまま集計まで一気通貫。<code>(price * qty)</code> は各要素のコンテキストで計算されます。'
   },
   {
-    id: 40, level: 8, category: 'Step Functions 実戦',
+    id: 40, level: 8, category: 'Step Functions 実践②',
     title: '総合: 結果と変数を合成',
     desc: 'バッチ処理の結果 <code>$states.result</code> と変数 <code>$operator</code> を使って、<code>{ "count": 件数, "totalQty": 数量合計, "by": 担当 }</code> を組み立ててください。',
     input: {},
@@ -1633,7 +1633,7 @@ const PROBLEMS = [
     expected: { name: '田中', email: 'tanaka@example.com', message: 'こんにちは' },
     hint: 'body は JSON 文字列です。<code>$parse()</code> でオブジェクトにします。',
     solution: '$parse($states.input.body)',
-    explanation: 'API Gateway 直接統合では body が文字列で渡ります。<code>$parse()</code> は Step Functions が用意する組み込み関数で、Lambda の <code>json.loads</code> 相当です。これを起点に、後続ステートが <code>$states.result</code> から各フィールドを参照します。'
+    explanation: 'API Gateway 直接統合では body が文字列で渡ります。<code>$parse()</code> は Step Functions が用意する組み込み関数で、Lambda の <code>json.loads</code> 相当です。これを起点に、後続ステートは <code>$states.input</code>（このステートの出力）から各フィールドを参照します。<code>$states.result</code> は Task/Map/Parallel の<strong>結果</strong>を指す別物なので混同しないでください。'
   },
   {
     id: 42, level: 9, category: '直接統合：入力を取り出す',
@@ -1664,7 +1664,7 @@ const PROBLEMS = [
     expected: { anthropic_version: 'bedrock-2023-05-31', messages: [ { role: 'user', content: 'S3とは何ですか？' } ], max_tokens: 1024 },
     hint: '<code>max_tokens</code> は<strong>数値リテラル</strong>で書きます。文字列にすると Bedrock に弾かれます。',
     solution: '{ "anthropic_version": "bedrock-2023-05-31", "messages": [ { "role": "user", "content": $states.input.question } ], "max_tokens": 1024 }',
-    explanation: 'モデルごとに body schema が違います（Claude / Titan / Llama）。Claude は <code>anthropic_version</code> と messages 配列が必須です。<code>max_tokens</code> や <code>temperature</code> は数値リテラルで書きます。長い応答は 256KB 制限に当たるため、統合の <code>Output</code> に S3Uri を指定して退避できます。'
+    explanation: 'この期待値は <code>invokeModel</code> に渡す <strong>body の中身</strong>です。実機の最適化統合では <code>{ "ModelId": ..., "Body": { ここ } }</code> のように <code>Body</code> でラップして渡します。モデルごとに body schema が違います（Claude / Titan / Llama）。Claude は <code>anthropic_version</code> と messages 配列が必須です。<code>max_tokens</code> や <code>temperature</code> は数値リテラルで書きます。長い応答は 256KB 制限に当たるため、統合の <code>Output</code> に S3Uri を指定して退避できます。'
   },
   {
     id: 45, level: 9, category: '直接統合：入力を取り出す',
@@ -1707,7 +1707,7 @@ const PROBLEMS = [
     expected: 'secret=SECRET123&response=TOKEN_ABC',
     hint: 'JSON ではなく <code>キー=値&キー=値</code> の文字列を <code>&</code> 連結で作ります。',
     solution: '"secret=" & $secret & "&response=" & $states.input.token',
-    explanation: 'Google API は form-urlencoded を要求します（JSON 不可）。secret は Connection の認証ヘッダではなく body に乗るため、Assign で <code>$secret</code> に束縛しておき、ここで文字列連結します。HTTP Task の Content-Type も合わせます。',
+    explanation: 'Google API は form-urlencoded を要求します（JSON 不可）。secret は Connection の認証ヘッダではなく body に乗るため、Assign で <code>$secret</code> に束縛しておき、ここで文字列連結します。HTTP Task の Content-Type も合わせます。値に記号や日本語が混じる場合は <code>$encodeUrlComponent()</code> でエスケープします（reCAPTCHA トークンは英数字なので今回は不要）。',
     notes: '変数 <code>$secret = "SECRET123"</code> がバインドされています:'
   },
   {
@@ -2232,12 +2232,12 @@ function showWelcome() {
   const doneCount = Object.values(state.status).filter(s => s === 'done').length;
   main.innerHTML = `
     <div class="welcome">
-      <div class="welcome-eyebrow">JSONata × Step Functions / 40本ノック</div>
+      <div class="welcome-eyebrow">JSONata × Step Functions / 50本ノック</div>
       <h1>JSONata <em>ノック</em>道場</h1>
       <p class="welcome-sub">AWS Step Functions の新しいクエリ言語を、<br>手を動かして身につける。</p>
       <div class="welcome-body">
         <p>2024年11月、Step Functions に <strong>JSONata</strong> と <strong>Variables</strong> がやってきた。これまで <code>InputPath</code>・<code>Parameters</code>・<code>ResultSelector</code>・<code>ResultPath</code>・<code>OutputPath</code> を組み合わせて苦労していたデータ変換が、ぐっとシンプルになる。</p>
-        <p>でも、クエリ言語は触らないと身につかない。この道場では、<strong>$states.input</strong> へのアクセスから、Parallel 結果のマージ、Step Functions 独自の <code>$parse</code>、さらに高階関数・Map/Catch/Assign の実戦まで、40本のドリルを段階的に用意した。</p>
+        <p>でも、クエリ言語は触らないと身につかない。この道場では、<strong>$states.input</strong> へのアクセスから、Parallel 結果のマージ、Step Functions 独自の <code>$parse</code>、高階関数・Map/Catch/Assign の実戦、さらに <strong>直接統合（Lambda 置き換え）</strong>で入力を取り出し結果を組み立てる実戦まで、50本のドリルを段階的に用意した。</p>
         <p>すべての問題は <strong>Step Functions と同じ文脈</strong>で動く。<code>$states.input</code>、<code>$states.result</code>、変数バインディング ── 本番と同じ書き方で練習できる。</p>
       </div>
       <button class="btn btn-primary" onclick="goToProblem(${doneCount > 0 && doneCount < PROBLEMS.length ? findNextUnsolved() : 0})">
