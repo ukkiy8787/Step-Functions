@@ -91,7 +91,8 @@ JSONata 式だけをドリルで鍛える単一 HTML アプリ。**全 50 問 / 
 
 ---
 
-## 実機ラボ（問い合わせフォーム）
+## 実機ラボ(今後拡張予定)
+
 
 `Step-Functions-/contact-form-lab.html` は Lambda を使わない問い合わせフォームの実機デプロイラボ。
 
